@@ -1,19 +1,19 @@
-package amf
+package utils
 
 import (
 	"fmt"
 	"io"
 )
 
-func readByte(r io.Reader) (byte, error) {
-	buf, err := readBytes(r, 1)
+func ReadByte(r io.Reader) (byte, error) {
+	buf, err := ReadBytes(r, 1)
 	if err != nil {
 		return 0, err
 	}
 	return buf[0], nil
 }
 
-func readBytes(r io.Reader, n int) ([]byte, error) {
+func ReadBytes(r io.Reader, n int) ([]byte, error) {
 	buf := make([]byte, n) //todo 优化
 	p := buf
 	for {
@@ -30,11 +30,11 @@ func readBytes(r io.Reader, n int) ([]byte, error) {
 	return buf, nil
 }
 
-func writeByte(w io.Writer, b byte) error {
-	return writeBytes(w, []byte{b})
+func WriteByte(w io.Writer, b byte) error {
+	return WriteBytes(w, []byte{b})
 }
 
-func writeBytes(w io.Writer, buf []byte) error {
+func WriteBytes(w io.Writer, buf []byte) error {
 	for {
 		n, err := w.Write(buf)
 		if err != nil {
@@ -48,19 +48,19 @@ func writeBytes(w io.Writer, buf []byte) error {
 }
 
 //used for unit test
-type bufferWithMaxCapacity struct {
+type BufferWithMaxCapacity struct {
 	data     []byte
 	capacity int
 }
 
-func newBufferWithMaxCapacity(capacity int) (*bufferWithMaxCapacity, error) {
-	return &bufferWithMaxCapacity{
+func NewBufferWithMaxCapacity(capacity int) (*BufferWithMaxCapacity, error) {
+	return &BufferWithMaxCapacity{
 		data:     make([]byte, 0, capacity),
 		capacity: capacity,
 	}, nil
 }
 
-func (b *bufferWithMaxCapacity) Write(buf []byte) (int, error) {
+func (b *BufferWithMaxCapacity) Write(buf []byte) (int, error) {
 	if len(b.data)+len(buf) > b.capacity {
 		return 0, fmt.Errorf("overflow")
 	}
@@ -73,6 +73,6 @@ func (b *bufferWithMaxCapacity) Write(buf []byte) (int, error) {
 	}
 }
 
-func (b *bufferWithMaxCapacity)Bytes() []byte{
+func (b *BufferWithMaxCapacity) Bytes() []byte {
 	return b.data
 }

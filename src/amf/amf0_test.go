@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"github.com/stretchr/testify/assert"
+	"github.com/zhyoulun/gls/src/utils"
 	"strings"
 	"testing"
 )
@@ -618,11 +619,11 @@ func Test_amf0_encodeNull(t *testing.T) {
 		assert.Equal(t, []byte{amf0NullMarker}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(0)
+		buf, _ := utils.NewBufferWithMaxCapacity(0)
 		n, err := a.encodeNull(buf)
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
-		assert.Equal(t, []byte{}, buf.data)
+		assert.Equal(t, []byte{}, buf.Bytes())
 	}
 }
 
@@ -643,25 +644,25 @@ func Test_amf0_encodeBoolean(t *testing.T) {
 		assert.Equal(t, []byte{amf0BooleanMarker, amf0BooleanFalse}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(0)
+		buf, _ := utils.NewBufferWithMaxCapacity(0)
 		n, err := a.encodeBoolean(buf, true)
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
-		assert.Equal(t, []byte{}, buf.data)
+		assert.Equal(t, []byte{}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(1)
+		buf, _ := utils.NewBufferWithMaxCapacity(1)
 		n, err := a.encodeBoolean(buf, true)
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
-		assert.Equal(t, []byte{amf0BooleanMarker}, buf.data)
+		assert.Equal(t, []byte{amf0BooleanMarker}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(1)
+		buf, _ := utils.NewBufferWithMaxCapacity(1)
 		n, err := a.encodeBoolean(buf, false)
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
-		assert.Equal(t, []byte{amf0BooleanMarker}, buf.data)
+		assert.Equal(t, []byte{amf0BooleanMarker}, buf.Bytes())
 	}
 }
 
@@ -675,18 +676,18 @@ func Test_amf0_encodeNumber(t *testing.T) {
 		assert.Equal(t, []byte{amf0NumberMarker, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(1)
+		buf, _ := utils.NewBufferWithMaxCapacity(1)
 		n, err := a.encodeNumber(buf, 1.23)
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
-		assert.Equal(t, []byte{amf0NumberMarker}, buf.data)
+		assert.Equal(t, []byte{amf0NumberMarker}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(0)
+		buf, _ := utils.NewBufferWithMaxCapacity(0)
 		n, err := a.encodeNumber(buf, 1.23)
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
-		assert.Equal(t, []byte{}, buf.data)
+		assert.Equal(t, []byte{}, buf.Bytes())
 	}
 }
 
@@ -707,25 +708,25 @@ func Test_amf0_encodeStrictArray(t *testing.T) {
 		assert.Equal(t, []byte{amf0StrictArrayMarker, 0x00, 0x00, 0x00, 0x01, amf0BooleanMarker, amf0BooleanTrue}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(0)
+		buf, _ := utils.NewBufferWithMaxCapacity(0)
 		n, err := a.encodeStrictArray(buf, AmfArray{})
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
-		assert.Equal(t, []byte{}, buf.data)
+		assert.Equal(t, []byte{}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(3)
+		buf, _ := utils.NewBufferWithMaxCapacity(3)
 		n, err := a.encodeStrictArray(buf, AmfArray{})
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
-		assert.Equal(t, []byte{amf0StrictArrayMarker}, buf.data)
+		assert.Equal(t, []byte{amf0StrictArrayMarker}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(5)
+		buf, _ := utils.NewBufferWithMaxCapacity(5)
 		n, err := a.encodeStrictArray(buf, AmfArray{true})
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
-		assert.Equal(t, []byte{amf0StrictArrayMarker, 0x00, 0x00, 0x00, 0x01}, buf.data)
+		assert.Equal(t, []byte{amf0StrictArrayMarker, 0x00, 0x00, 0x00, 0x01}, buf.Bytes())
 	}
 }
 
@@ -750,21 +751,21 @@ func Test_amf0_encodeObject(t *testing.T) {
 		assert.Equal(t, want, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(0)
+		buf, _ := utils.NewBufferWithMaxCapacity(0)
 		n, err := a.encodeObject(buf, AmfObject{"a": true})
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
 		assert.Equal(t, []byte{}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(1)
+		buf, _ := utils.NewBufferWithMaxCapacity(1)
 		n, err := a.encodeObject(buf, AmfObject{"a": true})
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
 		assert.Equal(t, []byte{amf0ObjectMarker}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(4)
+		buf, _ := utils.NewBufferWithMaxCapacity(4)
 		n, err := a.encodeObject(buf, AmfObject{"a": true})
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
@@ -773,7 +774,7 @@ func Test_amf0_encodeObject(t *testing.T) {
 		assert.Equal(t, want, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(6)
+		buf, _ := utils.NewBufferWithMaxCapacity(6)
 		n, err := a.encodeObject(buf, AmfObject{"a": true})
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
@@ -783,7 +784,7 @@ func Test_amf0_encodeObject(t *testing.T) {
 		assert.Equal(t, want, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(8)
+		buf, _ := utils.NewBufferWithMaxCapacity(8)
 		n, err := a.encodeObject(buf, AmfObject{"a": true})
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
@@ -805,21 +806,21 @@ func Test_amf0_encodeString(t *testing.T) {
 		assert.Equal(t, []byte{amf0StringMarker, 0x00, 0x03, 'a', 'b', 'c'}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(0)
+		buf, _ := utils.NewBufferWithMaxCapacity(0)
 		n, err := a.encodeString(buf, "abc", true)
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
 		assert.Equal(t, []byte{}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(1)
+		buf, _ := utils.NewBufferWithMaxCapacity(1)
 		n, err := a.encodeString(buf, "abc", true)
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
 		assert.Equal(t, []byte{amf0StringMarker}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(3)
+		buf, _ := utils.NewBufferWithMaxCapacity(3)
 		n, err := a.encodeString(buf, "abc", true)
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
@@ -837,21 +838,21 @@ func Test_amf0_encodeLongString(t *testing.T) {
 		assert.Equal(t, []byte{amf0LongStringMarker, 0x00, 0x00, 0x00, 0x03, 'a', 'b', 'c'}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(0)
+		buf, _ := utils.NewBufferWithMaxCapacity(0)
 		n, err := a.encodeLongString(buf, "abc")
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
 		assert.Equal(t, []byte{}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(1)
+		buf, _ := utils.NewBufferWithMaxCapacity(1)
 		n, err := a.encodeLongString(buf, "abc")
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)
 		assert.Equal(t, []byte{amf0LongStringMarker}, buf.Bytes())
 	}
 	{
-		buf, _ := newBufferWithMaxCapacity(5)
+		buf, _ := utils.NewBufferWithMaxCapacity(5)
 		n, err := a.encodeLongString(buf, "abc")
 		assert.Equal(t, 0, n)
 		assert.Error(t, err)

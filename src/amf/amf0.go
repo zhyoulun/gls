@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/zhyoulun/gls/src/core"
+	"github.com/zhyoulun/gls/src/utils"
 	"io"
 	"reflect"
 )
@@ -121,7 +122,7 @@ func (a *amf0) encode(w io.Writer, val interface{}) (int, error) {
 }
 
 func (a *amf0) readMaker(r io.Reader) (byte, error) {
-	return readByte(r)
+	return utils.ReadByte(r)
 }
 
 //读取一个期望的marker
@@ -137,7 +138,7 @@ func (a *amf0) readWantMarker(r io.Reader, want byte) error {
 }
 
 func (a *amf0) writeMarker(w io.Writer, m byte) error {
-	return writeByte(w, m)
+	return utils.WriteByte(w, m)
 }
 
 //number-type = number-marker DOUBLE
@@ -153,7 +154,7 @@ func (a *amf0) decodeNumber(r io.Reader) (float64, error) {
 //boolean-type = boolean-marker U8
 //0 is false, <>0 is true
 func (a *amf0) decodeBoolean(r io.Reader) (bool, error) {
-	b, err := readByte(r)
+	b, err := utils.ReadByte(r)
 	if err != nil {
 		return false, err
 	}
@@ -172,7 +173,7 @@ func (a *amf0) decodeString(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	buf, err := readBytes(r, int(length))
+	buf, err := utils.ReadBytes(r, int(length))
 	if err != nil {
 		return "", err
 	}
@@ -271,7 +272,7 @@ func (a *amf0) decodeLongString(r io.Reader) (string, error) {
 		return "", err
 	}
 
-	buf, err := readBytes(r, int(length))
+	buf, err := utils.ReadBytes(r, int(length))
 	if err != nil {
 		return "", err
 	}
@@ -315,11 +316,11 @@ func (a *amf0) encodeBoolean(w io.Writer, b bool) (int, error) {
 	}
 	n += 1
 	if b {
-		if err := writeByte(w, amf0BooleanTrue); err != nil {
+		if err := utils.WriteByte(w, amf0BooleanTrue); err != nil {
 			return 0, err
 		}
 	} else {
-		if err := writeByte(w, amf0BooleanFalse); err != nil {
+		if err := utils.WriteByte(w, amf0BooleanFalse); err != nil {
 			return 0, err
 		}
 	}
@@ -408,7 +409,7 @@ func (a *amf0) encodeString(w io.Writer, s string, needMarker bool) (int, error)
 	} else {
 		n += 2
 	}
-	if err := writeBytes(w, []byte(s)); err != nil {
+	if err := utils.WriteBytes(w, []byte(s)); err != nil {
 		return 0, err
 	} else {
 		n += int(length)
@@ -429,7 +430,7 @@ func (a *amf0) encodeLongString(w io.Writer, s string) (int, error) {
 	} else {
 		n += 4
 	}
-	if err := writeBytes(w, []byte(s)); err != nil {
+	if err := utils.WriteBytes(w, []byte(s)); err != nil {
 		return 0, err
 	} else {
 		n += int(length)
