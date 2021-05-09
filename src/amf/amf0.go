@@ -3,6 +3,7 @@ package amf
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/zhyoulun/gls/src/core"
 	"github.com/zhyoulun/gls/src/utils"
 	"io"
@@ -70,7 +71,7 @@ func (a *amf0) decode(r io.Reader) (interface{}, error) {
 			return amf3.decode(r)
 		}
 	}
-	return nil, fmt.Errorf("amf0 decode, unknown marker %d", marker)
+	return nil, errors.Errorf("amf0 decode, unknown marker %d", marker)
 }
 
 func (a *amf0) encode(w io.Writer, val interface{}) (int, error) {

@@ -10,3 +10,13 @@
 - 尽量使用golang原生函数
 - 尽量少的使用反射，便于重构
 - 学习使用
+
+## 依赖关系
+
+0. core, utils
+1. av, amf
+2. flv
+3. rtmp
+4. stream
+5. server
+6. cmd

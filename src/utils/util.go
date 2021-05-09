@@ -30,6 +30,50 @@ func ReadBytes(r io.Reader, n int) ([]byte, error) {
 	return buf, nil
 }
 
+func ReadUintBE(r io.Reader, n int) (uint32, error) {
+	buf, err := ReadBytes(r, n)
+	if err != nil {
+		return 0, err
+	}
+	res := uint32(0)
+	for i := 0; i < n; i++ {
+		res = res<<8 + uint32(buf[i])
+	}
+	return res, nil
+}
+
+func ReadUintLE(r io.Reader, n int) (uint32, error) {
+	buf, err := ReadBytes(r, n)
+	if err != nil {
+		return 0, err
+	}
+	res := uint32(0)
+	for i := n - 1; i >= 0; i-- {
+		res = res<<8 + uint32(buf[i])
+	}
+	return res, nil
+}
+
+func WriteUintBE(w io.Writer, v uint32, n int) error {
+	for i := 0; i < n; i++ {
+		b := byte(v>>uint32((n-i-1)<<3)) & 0xff
+		if err := WriteByte(w, b); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func WriteUintLE(w io.Writer, v uint32, n int) error {
+	for i := n - 1; i >= 0; i-- {
+		b := byte(v>>uint32((n-i-1)<<3)) & 0xff
+		if err := WriteByte(w, b); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func WriteByte(w io.Writer, b byte) error {
 	return WriteBytes(w, []byte{b})
 }
