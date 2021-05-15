@@ -10,11 +10,11 @@ import (
 	"github.com/zhyoulun/gls/src/av"
 	"github.com/zhyoulun/gls/src/core"
 	"github.com/zhyoulun/gls/src/flv"
-	"net"
+	"github.com/zhyoulun/gls/src/utils"
 )
 
 type Conn struct {
-	tcpConn net.Conn
+	conn utils.PeekerConn
 
 	chunkSize           uint32
 	remoteChunkSize     uint32
@@ -28,9 +28,9 @@ type Conn struct {
 	streamName string
 }
 
-func NewConn(conn net.Conn) (*Conn, error) {
+func NewConn(conn utils.PeekerConn) (*Conn, error) {
 	return &Conn{
-		tcpConn: conn,
+		conn: conn,
 
 		chunkSize:       1024, //defaultMaximumChunkSize,//todo ??
 		remoteChunkSize: defaultMaximumChunkSize,
@@ -45,22 +45,22 @@ func (rc *Conn) Handshake() error {
 	if err != nil {
 		return err
 	}
-	if err := h.readC0(rc.tcpConn); err != nil {
+	if err := h.readC0(rc.conn); err != nil {
 		return err
 	}
-	if err := h.writeS0(rc.tcpConn); err != nil {
+	if err := h.writeS0(rc.conn); err != nil {
 		return err
 	}
-	if err := h.writeS1(rc.tcpConn); err != nil {
+	if err := h.writeS1(rc.conn); err != nil {
 		return err
 	}
-	if err := h.readC1(rc.tcpConn); err != nil {
+	if err := h.readC1(rc.conn); err != nil {
 		return err
 	}
-	if err := h.writeS2(rc.tcpConn); err != nil {
+	if err := h.writeS2(rc.conn); err != nil {
 		return err
 	}
-	if err := h.readC2(rc.tcpConn); err != nil {
+	if err := h.readC2(rc.conn); err != nil {
 		return err
 	}
 	log.Tracef("handshake: %s", h)
@@ -99,7 +99,7 @@ func (rc *Conn) GetConnInfo() ConnectCommentObject {
 }
 
 func (rc *Conn) Close() error {
-	return rc.tcpConn.Close()
+	return rc.conn.Close()
 }
 
 func (rc *Conn) ReadPacket() (*av.Packet, error) {
@@ -109,6 +109,18 @@ func (rc *Conn) ReadPacket() (*av.Packet, error) {
 		cs, err = rc.readChunkStream()
 		if err != nil {
 			return nil, err
+		}
+		//todo debug
+		if !utils.ChunkStreamHeaderDone {
+			_, err = utils.ChunkStreamLogFile.WriteString(cs.toCsvHeader())
+			if err != nil {
+				log.Warnf("write log file fail: %+v", err)
+			}
+			utils.ChunkStreamHeaderDone = true
+		}
+		_, err = utils.ChunkStreamLogFile.WriteString(cs.toCsvLine())
+		if err != nil {
+			log.Warnf("write log file fail: %+v", err)
 		}
 		if cs.messageTypeID == typeAudio || cs.messageTypeID == typeVideo ||
 			cs.messageTypeID == typeDataAMF0 || cs.messageTypeID == typeDataAMF3 {
@@ -121,6 +133,18 @@ func (rc *Conn) ReadPacket() (*av.Packet, error) {
 	p, err := av.NewPacket(cs, demuxer)
 	if err != nil {
 		return nil, err
+	}
+	//todo debug
+	if !utils.PacketHeaderDone {
+		_, err = utils.PacketLogFile.WriteString(p.ToCsvHeader())
+		if err != nil {
+			log.Warnf("write log file fail: %+v", err)
+		}
+		utils.PacketHeaderDone = true
+	}
+	_, err = utils.PacketLogFile.WriteString(p.ToCsvLine())
+	if err != nil {
+		log.Warnf("write log file fail: %+v", err)
 	}
 	return p, nil
 }
@@ -146,7 +170,7 @@ func (rc *Conn) readChunkStream() (*chunkStream, error) {
 		if basicHeader, err = newChunkBasicHeader(); err != nil {
 			return nil, errors.Wrap(err, "new chunk basic header")
 		}
-		if err = basicHeader.Read(rc.tcpConn); err != nil {
+		if err = basicHeader.Read(rc.conn); err != nil {
 			return nil, errors.Wrap(err, "basic header read")
 		}
 		log.Tracef("basic header: %s", basicHeader)
@@ -157,12 +181,12 @@ func (rc *Conn) readChunkStream() (*chunkStream, error) {
 			rc.chunkStreams[basicHeader.chunkStreamID] = cs
 			log.Infof("got a new chunk stream, chunkStreamID: %d", basicHeader.chunkStreamID)
 		} else {
-			cs.SetBasicHeader(basicHeader) //todo 这里容易遗漏！
+			cs.setBasicHeader(basicHeader) //todo 这里容易遗漏！
 		}
-		if err = cs.readChunk(rc.tcpConn, rc.remoteChunkSize); err != nil {
+		if err = cs.readChunk(rc.conn, rc.remoteChunkSize); err != nil {
 			return nil, err
 		}
-		if cs.Got() {
+		if cs.got() {
 			log.Tracef("got chunk stream: %s", cs)
 			break
 		}
@@ -172,7 +196,7 @@ func (rc *Conn) readChunkStream() (*chunkStream, error) {
 }
 
 func (rc *Conn) writeChunkStream(cs *chunkStream) error {
-	return cs.writeChunk(rc.tcpConn, rc.chunkSize)
+	return cs.writeChunk(rc.conn, rc.chunkSize)
 }
 
 func (rc *Conn) handleMessage(chunkStreamID, messageStreamID uint32, messageTypeID uint8, data []byte, timestamp uint32) error {

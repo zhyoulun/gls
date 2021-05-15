@@ -5,6 +5,7 @@ import (
 	"github.com/zhyoulun/gls/src/server"
 	"github.com/zhyoulun/gls/src/stream"
 	"net"
+	"os"
 )
 
 func Init() error {
@@ -18,16 +19,17 @@ func Init() error {
 }
 
 func InitLog() error {
-	log.SetLevel(log.TraceLevel)
+	log.SetLevel(log.InfoLevel)
+	log.SetOutput(os.Stdout)
 	return nil
 }
 
 func main() {
-	log.Infof("start golang live server")
 	if err := Init(); err != nil {
 		panic(err)
 	}
 
+	log.Infof("start golang live server")
 	ln, err := net.Listen("tcp", "127.0.0.1:1935")
 	if err != nil {
 		log.Fatalf("net Listen error: %+v", err)

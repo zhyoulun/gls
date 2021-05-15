@@ -11,7 +11,7 @@ import (
 
 type Stream struct {
 	sinksMutex  *sync.Mutex
-	sinks       []*Sink
+	sinks       map[string]*Sink
 	sourceMutex *sync.Mutex
 	source      *rtmp.Conn
 	running     bool
@@ -24,7 +24,7 @@ type Stream struct {
 func newStream() (*Stream, error) {
 	return &Stream{
 		sinksMutex:  &sync.Mutex{},
-		sinks:       make([]*Sink, 0),
+		sinks:       make(map[string]*Sink),
 		sourceMutex: &sync.Mutex{},
 		source:      nil,
 		running:     false,
@@ -63,7 +63,7 @@ func (s *Stream) readCycle() {
 			s.running = false
 			continue
 		} else {
-			log.Infof("%s", p)
+			log.Infof("read %s", p)
 		}
 
 		//缓存
@@ -93,17 +93,45 @@ func (s *Stream) readCycle() {
 		for _, sink := range s.sinks {
 			if !sink.initDone {
 				if s.metadata != nil {
-					sink.Write(s.metadata)
+					if err := sink.Send(s.metadata); err != nil {
+						if err := sink.Close(); err != nil {
+							log.Errorf("sink Close err: %+v", err)
+						}
+						delete(s.sinks, sink.ID())
+						log.Errorf("sink Send err: %+v", err)
+						continue
+					}
 				}
 				if s.audio != nil {
-					sink.Write(s.audio)
+					if err := sink.Send(s.audio); err != nil {
+						if err := sink.Close(); err != nil {
+							log.Errorf("sink Close err: %+v", err)
+						}
+						delete(s.sinks, sink.ID())
+						log.Errorf("sink Send err: %+v", err)
+						continue
+					}
 				}
 				if s.video != nil {
-					sink.Write(s.video)
+					if err := sink.Send(s.video); err != nil {
+						if err := sink.Close(); err != nil {
+							log.Errorf("sink Close err: %+v", err)
+						}
+						delete(s.sinks, sink.ID())
+						log.Errorf("sink Send err: %+v", err)
+						continue
+					}
 				}
 				sink.initDone = true
 			}
-			sink.Write(p)
+			if err := sink.Send(p); err != nil {
+				if err := sink.Close(); err != nil {
+					log.Errorf("sink Close err: %+v", err)
+				}
+				delete(s.sinks, sink.ID())
+				log.Errorf("sink Send err: %+v", err)
+				continue
+			}
 		}
 		s.sinksMutex.Unlock()
 	}
@@ -120,7 +148,7 @@ func (s *Stream) addSink(conn *rtmp.Conn) error {
 	if err != nil {
 		return err
 	}
-	s.sinks = append(s.sinks, sink)
+	s.sinks[sink.ID()] = sink
 	sink.Run()
 	return nil
 }

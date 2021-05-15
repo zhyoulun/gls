@@ -1,7 +1,9 @@
 package rtmp
 
 import (
+	"encoding/binary"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"github.com/zhyoulun/gls/src/av"
 	"github.com/zhyoulun/gls/src/core"
 	"github.com/zhyoulun/gls/src/flv"
@@ -10,6 +12,7 @@ import (
 )
 
 type chunkStream struct {
+	fmt             Fmt
 	chunkStreamID   uint32
 	timestamp       uint32
 	messageLength   uint32
@@ -18,6 +21,25 @@ type chunkStream struct {
 	tmp             chunkStreamTmp
 	data            []byte //chunk data
 	dataIndex       uint32 //待读取的位置
+}
+
+func (cs *chunkStream) toChunkCsvHeader() string {
+	return fmt.Sprintf("fmt,currentFmt,chunkStreamID,timestamp,messageLength,messageTypeID,messageStreamID,extended,timestampDelta,readLength\n")
+}
+
+func (cs *chunkStream) toChunkCsvLine() string {
+	return fmt.Sprintf("%d,%d,%d,%d,%d,%d,%d,%t,%d,%d\n", cs.fmt, cs.tmp.currentFmt,
+		cs.chunkStreamID, cs.timestamp, cs.messageLength, cs.messageTypeID, cs.messageStreamID,
+		cs.tmp.extended, cs.tmp.timestampDelta, cs.dataIndex)
+}
+
+func (cs *chunkStream) toCsvHeader() string {
+	return fmt.Sprintf("chunkStreamID,timestamp,messageLength,messageTypeID,messageStreamID\n")
+}
+
+func (cs *chunkStream) toCsvLine() string {
+	return fmt.Sprintf("%d,%d,%d,%d,%d\n", cs.chunkStreamID, cs.timestamp,
+		cs.messageLength, cs.messageTypeID, cs.messageStreamID)
 }
 
 func newChunkStream(fmt Fmt, chunkStreamID uint32) (*chunkStream, error) {
@@ -96,7 +118,7 @@ type chunkStreamTmp struct {
 	//leftToRead uint32
 }
 
-func (cs *chunkStream) SetBasicHeader(header *chunkBasicHeader) {
+func (cs *chunkStream) setBasicHeader(header *chunkBasicHeader) {
 	cs.tmp.currentFmt = header.fmt
 	cs.chunkStreamID = header.chunkStreamID
 }
@@ -106,13 +128,14 @@ func (cs *chunkStream) String() string {
 		cs.timestamp, cs.messageLength, cs.messageTypeID, cs.messageStreamID, cs.dataIndex)
 }
 
-func (cs *chunkStream) Got() bool {
+func (cs *chunkStream) got() bool {
 	return cs.messageLength == cs.dataIndex
 }
 
-func (cs *chunkStream) readChunk(r io.Reader, chunkSize uint32) error {
+func (cs *chunkStream) readChunk(r utils.ReaderPeeker, chunkSize uint32) error {
 	switch cs.tmp.currentFmt {
 	case fmt0: //11B, this type must be used at the start of a chunk stream
+		cs.fmt = fmt0
 		var timestamp uint32
 		var err error
 		if timestamp, err = utils.ReadUintBE(r, 3); err != nil {
@@ -151,6 +174,7 @@ func (cs *chunkStream) readChunk(r io.Reader, chunkSize uint32) error {
 		cs.dataIndex = 0
 		cs.tmp.firstChunkReadDone = true
 	case fmt1: //7B, stream with variable-sized message(for example: many video formats) should use this format for the first chunk of each new message after the first
+		cs.fmt = fmt1
 		var err error
 		var timestampDelta uint32
 		if timestampDelta, err = utils.ReadUintBE(r, 3); err != nil {
@@ -185,6 +209,7 @@ func (cs *chunkStream) readChunk(r io.Reader, chunkSize uint32) error {
 		cs.dataIndex = 0
 		cs.tmp.firstChunkReadDone = true
 	case fmt2: //3B, stream with constant-sized messages(for example: some audio and data formats) should use this format for the first chunk of each message after the first
+		cs.fmt = fmt2
 		var err error
 		var timestampDelta uint32
 		if timestampDelta, err = utils.ReadUintBE(r, 3); err != nil {
@@ -208,11 +233,11 @@ func (cs *chunkStream) readChunk(r io.Reader, chunkSize uint32) error {
 		cs.data = make([]byte, cs.messageLength)
 		cs.dataIndex = 0
 		cs.tmp.firstChunkReadDone = true
-	case fmt3: //0B
+	case fmt3: //0B; fmt3不可能是ChunkStream的第一个chunk
 		var err error
-		if !cs.tmp.firstChunkReadDone {
+		if cs.dataIndex == cs.messageLength { //todo ??不明白
 			//cs.timestamp
-			switch cs.tmp.currentFmt {
+			switch cs.fmt {
 			case fmt0:
 				if cs.tmp.extended {
 					var extendedTimestamp uint32
@@ -236,12 +261,20 @@ func (cs *chunkStream) readChunk(r io.Reader, chunkSize uint32) error {
 				cs.timestamp += timestampDelta
 			}
 			//cs.data init
-			cs.data = make([]byte, cs.messageLength) //这里的cs.messageLength从哪里来？从上个有相同chunkStreamID的message来？
+			cs.data = make([]byte, cs.messageLength) //todo 这里的cs.messageLength从哪里来？从上个有相同chunkStreamID的message来？
 			cs.dataIndex = 0
 			cs.tmp.firstChunkReadDone = true
 		} else {
 			if cs.tmp.extended {
-				//todo
+				//todo 这段逻辑比较神奇
+				b, err := r.Peek(4)
+				if err != nil {
+					return err
+				}
+				tmpTS := binary.BigEndian.Uint32(b)
+				if tmpTS == cs.timestamp {
+					_, _ = utils.ReadBytes(r, 4) //discard
+				}
 			}
 			//todo 为啥没有else呢？
 		}
@@ -260,6 +293,21 @@ func (cs *chunkStream) readChunk(r io.Reader, chunkSize uint32) error {
 	} else {
 		copy(cs.data[cs.dataIndex:cs.dataIndex+readLength], buf)
 		cs.dataIndex += readLength
+	}
+	//todo debug
+	if !utils.ChunkHeaderDone {
+		var err error
+		_, err = utils.ChunkLogFile.WriteString(cs.toChunkCsvHeader())
+		if err != nil {
+			log.Warnf("write log file fail: %+v", err)
+		}
+		utils.ChunkHeaderDone = true
+	} else {
+		var err error
+		_, err = utils.ChunkLogFile.WriteString(cs.toChunkCsvLine())
+		if err != nil {
+			log.Warnf("write log file fail: %+v", err)
+		}
 	}
 
 	return nil
@@ -288,16 +336,18 @@ func (cs *chunkStream) writeChunk(w io.Writer, chunkSize uint32) error {
 		//chunk message header
 		if f == fmt3 {
 			if cs.timestamp > 0xffffff {
-				if err := utils.WriteUintBE(w, 0xffffff, 3); err != nil {
-					return err
-				}
+				//todo ??为什么要删掉
+				//if err := utils.WriteUintBE(w, 0xffffff, 3); err != nil {
+				//	return err
+				//}
 				if err := utils.WriteUintBE(w, cs.timestamp, 4); err != nil {
 					return err
 				}
 			} else {
-				if err := utils.WriteUintBE(w, cs.timestamp, 3); err != nil {
-					return err
-				}
+				//todo ??为什么要删掉
+				//if err := utils.WriteUintBE(w, cs.timestamp, 3); err != nil {
+				//	return err
+				//}
 			}
 		} else if f == fmt0 {
 			if cs.timestamp > 0xffffff {
@@ -344,7 +394,7 @@ func (cs *chunkStream) writeChunk(w io.Writer, chunkSize uint32) error {
 	return nil
 }
 
-func (cs *chunkStream) WriteToData(v []byte) error {
+func (cs *chunkStream) writeToData(v []byte) error {
 	if uint32(len(v))+cs.dataIndex > cs.messageLength {
 		return fmt.Errorf("write too much data to chunk stream, message length: %d, data length: %d, data index: %d",
 			cs.messageLength, len(v), cs.dataIndex)

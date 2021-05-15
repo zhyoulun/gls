@@ -13,6 +13,14 @@ type Packet struct {
 	videoTagHandler VideoTagI
 }
 
+func (p *Packet) ToCsvHeader() string {
+	return fmt.Sprintf("avType,streamID,timestamp,dataLength\n")
+}
+
+func (p *Packet) ToCsvLine() string {
+	return fmt.Sprintf("%d,%d,%d,%d\n", p.avType, p.streamID, p.timestamp, len(p.data))
+}
+
 type ChunkStreamI interface {
 	GetAvType() (uint8, error)
 	GetMessageStreamID() uint32
@@ -53,8 +61,8 @@ func NewPacket(csi ChunkStreamI, di DemuxerI) (*Packet, error) {
 }
 
 func (p *Packet) String() string {
-	return fmt.Sprintf("packet info, avType: %d, streamID: %d, timestamp: %d, data length: %d",
-		p.avType, p.streamID, p.timestamp, len(p.data))
+	return fmt.Sprintf("packet info, avTypeName: %s, streamID: %d, timestamp: %d, data length: %d",
+		p.getAvTypeName(), p.streamID, p.timestamp, len(p.data))
 }
 
 func (p *Packet) IsVideo() bool {
@@ -71,6 +79,18 @@ func (p *Packet) IsMetadata() bool {
 
 func (p *Packet) GetAvType() uint8 {
 	return p.avType
+}
+
+func (p *Packet) getAvTypeName() string {
+	if p.avType == TypeVideo {
+		return "video"
+	} else if p.avType == TypeAudio {
+		return "audio"
+	} else if p.avType == TypeMetadata {
+		return "metadata"
+	} else {
+		return "unknown"
+	}
 }
 
 func (p *Packet) GetData() []byte {

@@ -20,7 +20,7 @@ func newPCMWindowAcknowledgementSize(size uint32) (*chunkStream, error) {
 	if err := binary.Write(buf, binary.BigEndian, &size); err != nil {
 		return nil, err
 	}
-	if err := cs.WriteToData(buf.Bytes()); err != nil {
+	if err := cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
 	return cs, nil
@@ -39,7 +39,7 @@ func newPCMSetPeerBandwidth(size uint32) (*chunkStream, error) {
 	if err := buf.WriteByte(limitTypeDynamic); err != nil {
 		return nil, err
 	}
-	if err := cs.WriteToData(buf.Bytes()); err != nil {
+	if err := cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
 	return cs, nil
@@ -55,7 +55,7 @@ func newPCMSetChunkSize(size uint32) (*chunkStream, error) {
 	if err := binary.Write(buf, binary.BigEndian, &size); err != nil {
 		return nil, err
 	}
-	if err := cs.WriteToData(buf.Bytes()); err != nil {
+	if err := cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
 	return cs, nil
@@ -66,7 +66,7 @@ func newCommandMessage(chunkStreamID, messageStreamID uint32, data []byte) (*chu
 	if err != nil {
 		return nil, err
 	}
-	if err := cs.WriteToData(data); err != nil {
+	if err := cs.writeToData(data); err != nil {
 		return nil, err
 	}
 	return cs, nil
@@ -81,7 +81,7 @@ func newBaseUserControlMessage(eventType, dataLength uint32) (*chunkStream, erro
 	if err := utils.WriteUintBE(buf, eventType, 2); err != nil {
 		return nil, err
 	}
-	if err := cs.WriteToData(buf.Bytes()); err != nil {
+	if err := cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
 	return cs, nil
@@ -96,7 +96,7 @@ func newUCMStreamIsRecorded(messageStreamID uint32) (*chunkStream, error) {
 	if err := utils.WriteUintBE(buf, messageStreamID, 4); err != nil {
 		return nil, err
 	}
-	if err := cs.WriteToData(buf.Bytes()); err != nil {
+	if err := cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
 	return cs, nil
@@ -111,7 +111,7 @@ func newUCMStreamBegin(messageStreamID uint32) (*chunkStream, error) {
 	if err := utils.WriteUintBE(buf, messageStreamID, 4); err != nil {
 		return nil, err
 	}
-	if err := cs.WriteToData(buf.Bytes()); err != nil {
+	if err := cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
 	return cs, nil

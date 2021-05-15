@@ -5,6 +5,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zhyoulun/gls/src/rtmp"
 	"github.com/zhyoulun/gls/src/stream"
+	"github.com/zhyoulun/gls/src/utils"
 	"net"
 )
 
@@ -26,17 +27,17 @@ func (s *Server) Serve() error {
 			return err
 		}
 		go func() {
-			//bufferedConn := utils.NewBufferedConn(tcpConn, 4*1024)
-			if err := s.handleConn(tcpConn); err != nil {
+			bufferedConn := utils.NewBufferedConn(tcpConn, 4*1024)
+			if err := s.handleConn(bufferedConn); err != nil {
 				log.Printf("handle conn error: %+v", err)
 			}
 		}()
 	}
 }
 
-func (s *Server) handleConn(tcpConn net.Conn) error {
-	log.Infof("tcp info, local addr: %s, remote addr: %s", tcpConn.LocalAddr(), tcpConn.RemoteAddr())
-	rtmpConn, err := rtmp.NewConn(tcpConn)
+func (s *Server) handleConn(conn utils.PeekerConn) error {
+	log.Infof("tcp info, local addr: %s, remote addr: %s", conn.LocalAddr(), conn.RemoteAddr())
+	rtmpConn, err := rtmp.NewConn(conn)
 	if err != nil {
 		return err
 	}
@@ -56,12 +57,6 @@ func (s *Server) handleConn(tcpConn net.Conn) error {
 			return err
 		}
 	}
-
-	////todo delete
-	//if err := tcpConn.Close(); err != nil {
-	//	return err
-	//}
-	//log.Infof("tcp conn close")
 
 	return nil
 }
