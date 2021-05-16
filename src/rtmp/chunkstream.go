@@ -3,11 +3,11 @@ package rtmp
 import (
 	"encoding/binary"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"github.com/zhyoulun/gls/src/av"
 	"github.com/zhyoulun/gls/src/core"
 	"github.com/zhyoulun/gls/src/flv"
 	"github.com/zhyoulun/gls/src/utils"
+	"github.com/zhyoulun/gls/src/utils/debug"
 	"io"
 )
 
@@ -42,7 +42,7 @@ func (cs *chunkStream) toCsvLine() string {
 		cs.messageLength, cs.messageTypeID, cs.messageStreamID)
 }
 
-func newChunkStream(fmt Fmt, chunkStreamID uint32) (*chunkStream, error) {
+func newChunkStreamForRead(fmt Fmt, chunkStreamID uint32) (*chunkStream, error) {
 	return &chunkStream{
 		chunkStreamID: chunkStreamID,
 		tmp: chunkStreamTmp{
@@ -51,7 +51,7 @@ func newChunkStream(fmt Fmt, chunkStreamID uint32) (*chunkStream, error) {
 	}, nil
 }
 
-func newChunkStream2(chunkStreamID, timestamp, messageLength uint32, messageTypeID uint8, messageStreamID uint32) (*chunkStream, error) {
+func newChunkStreamForMessage(chunkStreamID, timestamp, messageLength uint32, messageTypeID uint8, messageStreamID uint32) (*chunkStream, error) {
 	return &chunkStream{
 		chunkStreamID:   chunkStreamID,
 		timestamp:       timestamp,
@@ -63,7 +63,7 @@ func newChunkStream2(chunkStreamID, timestamp, messageLength uint32, messageType
 	}, nil
 }
 
-func newChunkStream3(p *av.Packet) (*chunkStream, error) {
+func newChunkStreamForPacket(p *av.Packet) (*chunkStream, error) {
 	var messageTypeID uint8
 	avType := p.GetAvType()
 	if avType == av.TypeAudio {
@@ -294,21 +294,12 @@ func (cs *chunkStream) readChunk(r utils.ReaderPeeker, chunkSize uint32) error {
 		copy(cs.data[cs.dataIndex:cs.dataIndex+readLength], buf)
 		cs.dataIndex += readLength
 	}
-	//todo debug
-	if !utils.ChunkHeaderDone {
-		var err error
-		_, err = utils.ChunkLogFile.WriteString(cs.toChunkCsvHeader())
-		if err != nil {
-			log.Warnf("write log file fail: %+v", err)
-		}
-		utils.ChunkHeaderDone = true
-	} else {
-		var err error
-		_, err = utils.ChunkLogFile.WriteString(cs.toChunkCsvLine())
-		if err != nil {
-			log.Warnf("write log file fail: %+v", err)
-		}
-	}
+
+	debug.Csv.Write(&debug.Message{
+		FileName:   "chunk.csv",
+		HeaderLine: cs.toChunkCsvHeader(),
+		BodyLine:   cs.toChunkCsvLine(),
+	})
 
 	return nil
 }
@@ -326,7 +317,7 @@ func (cs *chunkStream) writeChunk(w io.Writer, chunkSize uint32) error {
 		} else {
 			f = fmt3
 		}
-		if basicHeader, err := newChunkBasicHeader2(cs.chunkStreamID, f); err != nil {
+		if basicHeader, err := newChunkBasicHeaderForWrite(cs.chunkStreamID, f); err != nil {
 			return err
 		} else {
 			if err := basicHeader.Write(w); err != nil {

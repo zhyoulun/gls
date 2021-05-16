@@ -4,12 +4,16 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zhyoulun/gls/src/server"
 	"github.com/zhyoulun/gls/src/stream"
+	"github.com/zhyoulun/gls/src/utils/debug"
 	"net"
 	"os"
 )
 
 func Init() error {
 	if err := InitLog(); err != nil {
+		return err
+	}
+	if err := debug.Init(); err != nil {
 		return err
 	}
 	if err := stream.InitManager(); err != nil {

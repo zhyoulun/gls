@@ -13,11 +13,11 @@ type chunkBasicHeader struct {
 	fmt           Fmt
 }
 
-func newChunkBasicHeader() (*chunkBasicHeader, error) {
+func newChunkBasicHeaderForRead() (*chunkBasicHeader, error) {
 	return &chunkBasicHeader{}, nil
 }
 
-func newChunkBasicHeader2(chunkStreamID uint32, fmt Fmt) (*chunkBasicHeader, error) {
+func newChunkBasicHeaderForWrite(chunkStreamID uint32, fmt Fmt) (*chunkBasicHeader, error) {
 	return &chunkBasicHeader{
 		chunkStreamID: chunkStreamID,
 		fmt:           fmt,
@@ -67,7 +67,7 @@ func (cbh *chunkBasicHeader) Write(w io.Writer) error {
 			return err
 		}
 	case cbh.chunkStreamID-64 < 65536:
-		h |= 1
+		h |= 1 //代表是数字1，不是所有的位都是1
 		if err := utils.WriteByte(w, h); err != nil {
 			return err
 		}

@@ -10,6 +10,7 @@
 - 尽量使用golang原生函数
 - 尽量少的使用反射，便于重构
 - 学习使用
+- 日志：chunk/chunk stream/packet级别的日志，写成trace的，需要额外使用debug包打到csv文件中，方便调试
 
 ## 依赖关系
 
@@ -20,3 +21,9 @@
 4. stream
 5. server
 6. cmd
+
+## 调试工具
+
+- wireshark
+  - 过滤条件：rtmp and tcp.port>xx
+- print csv excel

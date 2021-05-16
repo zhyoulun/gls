@@ -7,7 +7,7 @@ import (
 )
 
 func newBaseProtocolControlMessage(messageLength uint32, messageTypeID uint8) (*chunkStream, error) {
-	return newChunkStream2(2, 0, messageLength, messageTypeID, 0)
+	return newChunkStreamForMessage(2, 0, messageLength, messageTypeID, 0)
 }
 
 //protocol control message
@@ -62,7 +62,7 @@ func newPCMSetChunkSize(size uint32) (*chunkStream, error) {
 }
 
 func newCommandMessage(chunkStreamID, messageStreamID uint32, data []byte) (*chunkStream, error) {
-	cs, err := newChunkStream2(chunkStreamID, 0, uint32(len(data)), typeCommandAMF0, messageStreamID) //todo 为什么没有amf3
+	cs, err := newChunkStreamForMessage(chunkStreamID, 0, uint32(len(data)), typeCommandAMF0, messageStreamID) //todo 为什么没有amf3
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func newCommandMessage(chunkStreamID, messageStreamID uint32, data []byte) (*chu
 }
 
 func newBaseUserControlMessage(eventType, dataLength uint32) (*chunkStream, error) {
-	cs, err := newChunkStream2(2, 0, dataLength+2, typeUserControl, 1)
+	cs, err := newChunkStreamForMessage(2, 0, dataLength+2, typeUserControl, 1)
 	if err != nil {
 		return nil, err
 	}

@@ -63,7 +63,7 @@ func (s *Stream) readCycle() {
 			s.running = false
 			continue
 		} else {
-			log.Infof("read %s", p)
+			log.Tracef("read %s", p)
 		}
 
 		//缓存
@@ -83,11 +83,6 @@ func (s *Stream) readCycle() {
 			}
 		}
 
-		////todo delete
-		//i++
-		//if i > 100 {
-		//	break
-		//}
 		//todo write to sink
 		s.sinksMutex.Lock()
 		for _, sink := range s.sinks {

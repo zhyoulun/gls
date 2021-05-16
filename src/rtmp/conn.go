@@ -11,6 +11,7 @@ import (
 	"github.com/zhyoulun/gls/src/core"
 	"github.com/zhyoulun/gls/src/flv"
 	"github.com/zhyoulun/gls/src/utils"
+	"github.com/zhyoulun/gls/src/utils/debug"
 )
 
 type Conn struct {
@@ -110,18 +111,14 @@ func (rc *Conn) ReadPacket() (*av.Packet, error) {
 		if err != nil {
 			return nil, err
 		}
-		//todo debug
-		if !utils.ChunkStreamHeaderDone {
-			_, err = utils.ChunkStreamLogFile.WriteString(cs.toCsvHeader())
-			if err != nil {
-				log.Warnf("write log file fail: %+v", err)
-			}
-			utils.ChunkStreamHeaderDone = true
-		}
-		_, err = utils.ChunkStreamLogFile.WriteString(cs.toCsvLine())
-		if err != nil {
-			log.Warnf("write log file fail: %+v", err)
-		}
+
+		//debug
+		debug.Csv.Write(&debug.Message{
+			FileName:   "chunk_stream.csv",
+			HeaderLine: cs.toCsvHeader(),
+			BodyLine:   cs.toCsvLine(),
+		})
+
 		if cs.messageTypeID == typeAudio || cs.messageTypeID == typeVideo ||
 			cs.messageTypeID == typeDataAMF0 || cs.messageTypeID == typeDataAMF3 {
 			break
@@ -134,30 +131,24 @@ func (rc *Conn) ReadPacket() (*av.Packet, error) {
 	if err != nil {
 		return nil, err
 	}
-	//todo debug
-	if !utils.PacketHeaderDone {
-		_, err = utils.PacketLogFile.WriteString(p.ToCsvHeader())
-		if err != nil {
-			log.Warnf("write log file fail: %+v", err)
-		}
-		utils.PacketHeaderDone = true
-	}
-	_, err = utils.PacketLogFile.WriteString(p.ToCsvLine())
-	if err != nil {
-		log.Warnf("write log file fail: %+v", err)
-	}
+	//debug
+	debug.Csv.Write(&debug.Message{
+		FileName:   "packet.csv",
+		HeaderLine: p.ToCsvHeader(),
+		BodyLine:   p.ToCsvLine(),
+	})
 	return p, nil
 }
 
 func (rc *Conn) WritePacket(p *av.Packet) error {
-	cs, err := newChunkStream3(p)
+	cs, err := newChunkStreamForPacket(p)
 	if err != nil {
 		return err
 	}
 	if err := rc.writeChunkStream(cs); err != nil {
 		return err
 	}
-	log.Infof("write chunk stream: %s", cs)
+	log.Tracef("write chunk stream: %s", cs)
 	return nil
 }
 
@@ -167,7 +158,7 @@ func (rc *Conn) readChunkStream() (*chunkStream, error) {
 		var basicHeader *chunkBasicHeader
 		var err error
 		var ok bool
-		if basicHeader, err = newChunkBasicHeader(); err != nil {
+		if basicHeader, err = newChunkBasicHeaderForRead(); err != nil {
 			return nil, errors.Wrap(err, "new chunk basic header")
 		}
 		if err = basicHeader.Read(rc.conn); err != nil {
@@ -175,7 +166,7 @@ func (rc *Conn) readChunkStream() (*chunkStream, error) {
 		}
 		log.Tracef("basic header: %s", basicHeader)
 		if cs, ok = rc.chunkStreams[basicHeader.chunkStreamID]; !ok {
-			if cs, err = newChunkStream(basicHeader.fmt, basicHeader.chunkStreamID); err != nil {
+			if cs, err = newChunkStreamForRead(basicHeader.fmt, basicHeader.chunkStreamID); err != nil {
 				return nil, err
 			}
 			rc.chunkStreams[basicHeader.chunkStreamID] = cs

@@ -40,7 +40,7 @@ func (s *Sink) writeCycle() {
 		select {
 		case ch := <-s.ch:
 			p := ch.(*av.Packet)
-			log.Infof("write %s", p)
+			log.Tracef("write %s", p)
 			if err := s.conn.WritePacket(p); err != nil {
 				s.running = false
 				log.Errorf("write packet fail, err: %+v", err)
