@@ -42,29 +42,14 @@ func NewConn(conn utils.PeekerConn) (*Conn, error) {
 }
 
 func (rc *Conn) Handshake() error {
-	h, err := newHandshake()
-	if err != nil {
+	var h *handshake
+	var err error
+	if h, err = newHandshake(); err != nil {
 		return err
 	}
-	if err := h.readC0(rc.conn); err != nil {
+	if err = h.do(rc.conn); err != nil {
 		return err
 	}
-	if err := h.writeS0(rc.conn); err != nil {
-		return err
-	}
-	if err := h.writeS1(rc.conn); err != nil {
-		return err
-	}
-	if err := h.readC1(rc.conn); err != nil {
-		return err
-	}
-	if err := h.writeS2(rc.conn); err != nil {
-		return err
-	}
-	if err := h.readC2(rc.conn); err != nil {
-		return err
-	}
-	log.Tracef("handshake: %s", h)
 	return nil
 }
 

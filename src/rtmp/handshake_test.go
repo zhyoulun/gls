@@ -1,10 +1,13 @@
 package rtmp
 
 import (
+	"bou.ke/monkey"
 	"bytes"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/zhyoulun/gls/src/utils"
+	"math/rand"
+	"os"
 	"testing"
 )
 
@@ -15,6 +18,7 @@ func Test_handshake_readC0(t *testing.T) {
 		err := h.readC0(r)
 		assert.NoError(t, err)
 		assert.Equal(t, byte(rtmpVersion), h.c0)
+		fmt.Fprintf(os.Stdout, "%s", h)
 	}
 	{
 		r := bytes.NewReader([]byte{1})
@@ -79,10 +83,11 @@ func Test_handshake_readC2(t *testing.T) {
 	{
 		src := []byte{0x01, 0x02, 0x03, 0x04,
 			0x05, 0x06, 0x07, 0x08}
-		rand := [1528]byte{0x01}
-		src = append(src, rand[:]...)
+		randBytes := [1528]byte{0x01}
+		src = append(src, randBytes[:]...)
 		r := bytes.NewReader(src)
 		h, _ := newHandshake()
+		h.s1random = randBytes
 		err := h.readC2(r)
 		assert.NoError(t, err)
 		assert.Equal(t, uint32(0x01020304), h.c2time)
@@ -111,6 +116,17 @@ func Test_handshake_readC2(t *testing.T) {
 		err := h.readC2(r)
 		assert.Error(t, err)
 	}
+	{
+		src := []byte{0x01, 0x02, 0x03, 0x04,
+			0x05, 0x06, 0x07, 0x08}
+		randBytes := [1528]byte{0x01}
+		src = append(src, randBytes[:]...)
+		r := bytes.NewReader(src)
+		h, _ := newHandshake()
+		h.s1random = [1528]byte{0x02}
+		err := h.readC2(r)
+		assert.Error(t, err)
+	}
 }
 
 func Test_handshake_writeS0(t *testing.T) {
@@ -130,13 +146,17 @@ func Test_handshake_writeS0(t *testing.T) {
 }
 
 func Test_handshake_writeS1(t *testing.T) {
+	monkey.Patch(rand.Read, func(p []byte) (n int, err error) {
+		p[0] = 0x01
+		return len(p), nil
+	})
 	{
 		buf := &bytes.Buffer{}
 		h, _ := newHandshake()
 		err := h.writeS1(buf)
 		assert.NoError(t, err)
 		expect := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-		random := [1528]byte{}
+		random := [1528]byte{0x01}
 		expect = append(expect, random[:]...)
 		assert.Equal(t, expect, buf.Bytes())
 	}
@@ -190,8 +210,4 @@ func Test_handshake_writeS2(t *testing.T) {
 		err := h.writeS2(buf)
 		assert.Error(t, err)
 	}
-}
-
-func Test1(t *testing.T) {
-	fmt.Println(byte(1 >> 24))
 }
