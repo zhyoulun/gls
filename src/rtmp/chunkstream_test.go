@@ -24,7 +24,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 
 		err := cs.readChunk(buf, 4)
 		assert.NoError(t, err)
-		assert.Equal(t, uint32(0), cs.timestamp)
+		assert.Equal(t, uint32(0), cs.clock)
 		assert.Equal(t, uint32(8), cs.messageLength)
 		assert.Equal(t, uint8(0), cs.messageTypeID)
 		assert.Equal(t, uint32(0), cs.messageStreamID)
@@ -43,7 +43,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 
 		err := cs.readChunk(buf, defaultMaximumChunkSize)
 		assert.NoError(t, err)
-		assert.Equal(t, uint32(0), cs.timestamp)
+		assert.Equal(t, uint32(0), cs.clock)
 		assert.Equal(t, uint32(8), cs.messageLength)
 		assert.Equal(t, uint8(0), cs.messageTypeID)
 		assert.Equal(t, uint32(0), cs.messageStreamID)
@@ -134,7 +134,7 @@ func Test_chunkStream_readChunkFmt1(t *testing.T) {
 
 		err := cs.readChunk(buf, 4)
 		assert.NoError(t, err)
-		assert.Equal(t, uint32(0), cs.timestamp)
+		assert.Equal(t, uint32(0), cs.clock)
 		assert.Equal(t, uint32(8), cs.messageLength)
 		assert.Equal(t, uint8(0), cs.messageTypeID)
 		assert.Equal(t, []byte{0x01, 0x02, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00}, cs.data)
@@ -151,7 +151,7 @@ func Test_chunkStream_readChunkFmt1(t *testing.T) {
 
 		err := cs.readChunk(buf, defaultMaximumChunkSize)
 		assert.NoError(t, err)
-		assert.Equal(t, uint32(0), cs.timestamp)
+		assert.Equal(t, uint32(0), cs.clock)
 		assert.Equal(t, uint32(8), cs.messageLength)
 		assert.Equal(t, uint8(0), cs.messageTypeID)
 		assert.Equal(t, uint32(0), cs.messageStreamID)
@@ -228,7 +228,7 @@ func Test_chunkStream_readChunkFmt2(t *testing.T) {
 
 		err := cs.readChunk(buf, 4)
 		assert.NoError(t, err)
-		assert.Equal(t, uint32(0), cs.timestamp)
+		assert.Equal(t, uint32(0), cs.clock)
 		assert.Equal(t, []byte{0x01, 0x02, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00}, cs.data)
 		assert.Equal(t, uint32(4), cs.dataIndex)
 	}
@@ -242,7 +242,7 @@ func Test_chunkStream_readChunkFmt2(t *testing.T) {
 
 		err := cs.readChunk(buf, defaultMaximumChunkSize)
 		assert.NoError(t, err)
-		assert.Equal(t, uint32(0), cs.timestamp)
+		assert.Equal(t, uint32(0), cs.clock)
 	}
 	{
 		cs, _ := newChunkStreamForRead(header)
@@ -297,7 +297,7 @@ func Test_chunkStream_readChunkFmt3(t *testing.T) {
 
 		err := cs.readChunk(buf, 4)
 		assert.NoError(t, err)
-		assert.Equal(t, uint32(0), cs.timestamp)
+		assert.Equal(t, uint32(0), cs.clock)
 		assert.Equal(t, []byte{0x01, 0x02, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00}, cs.data)
 		assert.Equal(t, uint32(4), cs.dataIndex)
 	}

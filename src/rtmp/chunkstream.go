@@ -14,7 +14,7 @@ import (
 type chunkStream struct {
 	fmt             Fmt
 	chunkStreamID   uint32
-	timestamp       uint32
+	clock           uint32
 	messageLength   uint32
 	messageTypeID   uint8
 	messageStreamID uint32
@@ -29,7 +29,7 @@ func (cs *chunkStream) toChunkCsvHeader() string {
 
 func (cs *chunkStream) toChunkCsvLine() string {
 	return fmt.Sprintf("%d,%d,%d,%d,%d,%d,%d,%t,%d,%d\n", cs.fmt, cs.tmp.currentFmt,
-		cs.chunkStreamID, cs.timestamp, cs.messageLength, cs.messageTypeID, cs.messageStreamID,
+		cs.chunkStreamID, cs.clock, cs.messageLength, cs.messageTypeID, cs.messageStreamID,
 		cs.tmp.extended, cs.tmp.timestampDelta, cs.dataIndex)
 }
 
@@ -38,7 +38,7 @@ func (cs *chunkStream) toCsvHeader() string {
 }
 
 func (cs *chunkStream) toCsvLine() string {
-	return fmt.Sprintf("%d,%d,%d,%d,%d\n", cs.chunkStreamID, cs.timestamp,
+	return fmt.Sprintf("%d,%d,%d,%d,%d\n", cs.chunkStreamID, cs.clock,
 		cs.messageLength, cs.messageTypeID, cs.messageStreamID)
 }
 
@@ -54,7 +54,7 @@ func newChunkStreamForRead(basicHeader *chunkBasicHeader) (*chunkStream, error) 
 func newChunkStreamForMessage(chunkStreamID, timestamp, messageLength uint32, messageTypeID uint8, messageStreamID uint32) (*chunkStream, error) {
 	return &chunkStream{
 		chunkStreamID:   chunkStreamID,
-		timestamp:       timestamp,
+		clock:           timestamp,
 		messageLength:   messageLength,
 		messageTypeID:   messageTypeID,
 		messageStreamID: messageStreamID,
@@ -97,7 +97,7 @@ func newChunkStreamForPacket(p *av.Packet) (*chunkStream, error) {
 
 	return &chunkStream{
 		chunkStreamID:   chunkStreamID,
-		timestamp:       p.GetTimestamp(),
+		clock:           p.GetTimestamp(),
 		messageLength:   dataLength,
 		messageTypeID:   messageTypeID,
 		messageStreamID: p.GetStreamID(),
@@ -125,7 +125,7 @@ func (cs *chunkStream) setBasicHeader(header *chunkBasicHeader) {
 
 func (cs *chunkStream) String() string {
 	return fmt.Sprintf("timestamp: %d, messageLength: %d, messageTypeID: %d, messageStreamID: %d, dataIndex: %d",
-		cs.timestamp, cs.messageLength, cs.messageTypeID, cs.messageStreamID, cs.dataIndex)
+		cs.clock, cs.messageLength, cs.messageTypeID, cs.messageStreamID, cs.dataIndex)
 }
 
 func (cs *chunkStream) got() bool {
@@ -166,11 +166,11 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
 			}
-			cs.timestamp = extendedTimestamp
+			cs.clock = extendedTimestamp
 			cs.tmp.extended = true
 			cs.tmp.timestampDelta = 0
 		} else {
-			cs.timestamp = timestamp
+			cs.clock = timestamp
 			cs.tmp.extended = false
 			cs.tmp.timestampDelta = 0
 		}
@@ -200,11 +200,11 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
 			}
-			cs.timestamp += extendedTimestamp
+			cs.clock += extendedTimestamp
 			cs.tmp.extended = true
 			cs.tmp.timestampDelta = extendedTimestamp
 		} else {
-			cs.timestamp += timestampDelta
+			cs.clock += timestampDelta
 			cs.tmp.extended = false
 			cs.tmp.timestampDelta = timestampDelta
 		}
@@ -223,11 +223,11 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
 			}
-			cs.timestamp += extendedTimestamp
+			cs.clock += extendedTimestamp
 			cs.tmp.extended = true
 			cs.tmp.timestampDelta = extendedTimestamp
 		} else {
-			cs.timestamp += timestampDelta
+			cs.clock += timestampDelta
 			cs.tmp.extended = false
 			cs.tmp.timestampDelta = timestampDelta
 		}
@@ -254,7 +254,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 					if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 						return err
 					}
-					cs.timestamp = extendedTimestamp //todo 这行代码的位置有问题吗？
+					cs.clock = extendedTimestamp //todo 这行代码的位置有问题吗？
 				}
 				//todo 为什么这里没有else？
 			case fmt1, fmt2:
@@ -268,7 +268,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 				} else {
 					timestampDelta = cs.tmp.timestampDelta
 				}
-				cs.timestamp += timestampDelta //todo 这行代码的位置有问题吗？
+				cs.clock += timestampDelta //todo 这行代码的位置有问题吗？
 			}
 			//cs.data init
 			//todo 这里的cs.messageLength从哪里来？从上个有相同chunkStreamID的message来？
@@ -281,12 +281,34 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 					return err
 				}
 				tmpTS := binary.BigEndian.Uint32(b)
-				if tmpTS == cs.timestamp {
+				if tmpTS == cs.clock {
 					_, _ = utils.ReadBytes(r, 4) //discard
 				}
 			}
 			//todo 为啥没有else呢？
 		}
+
+		//换一种写法
+		//read extended timestamp
+		//var extendedTimestamp uint32
+		//if cs.tmp.extended {
+		//	var err error
+		//	if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
+		//		return err
+		//	}
+		//}
+		//if cs.fmt == fmt0 {
+		//	if cs.tmp.extended {
+		//		cs.timestamp = extendedTimestamp
+		//	} else {
+		//		//nothing changed
+		//	}
+		//} else {
+		//	if cs.tmp.extended {
+		//		cs.timestamp += extendedTimestamp
+		//	}
+		//}
+
 	default:
 		return core.ErrorImpossible
 	}
@@ -345,12 +367,12 @@ func (cs *chunkStream) writeChunk(w io.Writer, chunkSize uint32) error {
 		}
 		//chunk message header
 		if f == fmt3 {
-			if cs.timestamp > 0xffffff {
+			if cs.clock > 0xffffff {
 				//todo ??为什么要删掉
 				//if err := utils.WriteUintBE(w, 0xffffff, 3); err != nil {
 				//	return err
 				//}
-				if err := utils.WriteUintBE(w, cs.timestamp, 4); err != nil {
+				if err := utils.WriteUintBE(w, cs.clock, 4); err != nil {
 					return err
 				}
 			} else {
@@ -360,7 +382,7 @@ func (cs *chunkStream) writeChunk(w io.Writer, chunkSize uint32) error {
 				//}
 			}
 		} else if f == fmt0 {
-			if cs.timestamp > 0xffffff {
+			if cs.clock > 0xffffff {
 				if err := utils.WriteUintBE(w, 0xffffff, 3); err != nil {
 					return err
 				}
@@ -373,11 +395,11 @@ func (cs *chunkStream) writeChunk(w io.Writer, chunkSize uint32) error {
 				if err := utils.WriteUintLE(w, cs.messageStreamID, 4); err != nil {
 					return err
 				}
-				if err := utils.WriteUintBE(w, cs.timestamp, 4); err != nil {
+				if err := utils.WriteUintBE(w, cs.clock, 4); err != nil {
 					return err
 				}
 			} else {
-				if err := utils.WriteUintBE(w, cs.timestamp, 3); err != nil {
+				if err := utils.WriteUintBE(w, cs.clock, 3); err != nil {
 					return err
 				}
 				if err := utils.WriteUintBE(w, cs.messageLength, 3); err != nil {
@@ -433,7 +455,7 @@ func (cs *chunkStream) GetMessageStreamID() uint32 {
 }
 
 func (cs *chunkStream) GetTimestamp() uint32 {
-	return cs.timestamp
+	return cs.clock
 }
 
 func (cs *chunkStream) GetData() []byte {

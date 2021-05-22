@@ -63,7 +63,7 @@ func (rc *Conn) ReadMessage() error {
 			return err
 		}
 		//handle message in chunk stream
-		if err = rc.handleMessage(cs.chunkStreamID, cs.messageStreamID, cs.messageTypeID, cs.data, cs.timestamp); err != nil { //todo 这里的cs.timestamp传参可能有问题
+		if err = rc.handleMessage(cs.chunkStreamID, cs.messageStreamID, cs.messageTypeID, cs.data, cs.clock); err != nil { //todo 这里的cs.timestamp传参可能有问题
 			return err
 		}
 	}
