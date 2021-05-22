@@ -2,8 +2,10 @@ package rtmp
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/zhyoulun/gls/src/utils"
+	"os"
 	"testing"
 )
 
@@ -15,6 +17,7 @@ func Test_chunkBasicHeader_Read(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, fmt0, header.fmt)
 		assert.Equal(t, uint32(64), header.chunkStreamID)
+		fmt.Fprintf(os.Stdout, "%s", header)
 	}
 	{
 		header, _ := newChunkBasicHeaderForRead()
@@ -31,6 +34,14 @@ func Test_chunkBasicHeader_Read(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, fmt0, header.fmt)
 		assert.Equal(t, uint32(2), header.chunkStreamID)
+	}
+	{
+		header, _ := newChunkBasicHeaderForRead()
+		buf := bytes.NewBuffer([]byte{0x03})
+		err := header.Read(buf)
+		assert.NoError(t, err)
+		assert.Equal(t, fmt0, header.fmt)
+		assert.Equal(t, uint32(3), header.chunkStreamID)
 	}
 	{
 		header, _ := newChunkBasicHeaderForRead()

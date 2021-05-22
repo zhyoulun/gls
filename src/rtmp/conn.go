@@ -22,8 +22,8 @@ type Conn struct {
 	remoteWindowAckSize uint32
 	chunkStreams        map[uint32]*chunkStream
 
-	readMessageDone bool
-	isPublish       bool //todo
+	readMessageDone bool //默认值为false
+	isPublish       bool //默认值为false //todo
 
 	connInfo   ConnectCommentObject
 	streamName string
@@ -36,8 +36,6 @@ func NewConn(conn utils.PeekerConn) (*Conn, error) {
 		chunkSize:       1024, //defaultMaximumChunkSize,//todo ??
 		remoteChunkSize: defaultMaximumChunkSize,
 		chunkStreams:    make(map[uint32]*chunkStream),
-
-		readMessageDone: false,
 	}, nil
 }
 
@@ -47,7 +45,7 @@ func (rc *Conn) Handshake() error {
 	if h, err = newHandshake(); err != nil {
 		return err
 	}
-	if err = h.do(rc.conn); err != nil {
+	if err = h.Do(rc.conn); err != nil {
 		return err
 	}
 	return nil
@@ -143,22 +141,28 @@ func (rc *Conn) readChunkStream() (*chunkStream, error) {
 		var basicHeader *chunkBasicHeader
 		var err error
 		var ok bool
+
+		//read chunk basic header
 		if basicHeader, err = newChunkBasicHeaderForRead(); err != nil {
-			return nil, errors.Wrap(err, "new chunk basic header")
+			return nil, err
 		}
 		if err = basicHeader.Read(rc.conn); err != nil {
-			return nil, errors.Wrap(err, "basic header read")
+			return nil, err
 		}
 		log.Tracef("basic header: %s", basicHeader)
+
+		//init chunk stream
 		if cs, ok = rc.chunkStreams[basicHeader.chunkStreamID]; !ok {
-			if cs, err = newChunkStreamForRead(basicHeader.fmt, basicHeader.chunkStreamID); err != nil {
+			if cs, err = newChunkStreamForRead(basicHeader); err != nil {
 				return nil, err
 			}
 			rc.chunkStreams[basicHeader.chunkStreamID] = cs
 			log.Infof("got a new chunk stream, chunkStreamID: %d", basicHeader.chunkStreamID)
 		} else {
-			cs.setBasicHeader(basicHeader) //todo 这里容易遗漏！
+			cs.setBasicHeader(basicHeader) //这里容易遗漏！
 		}
+
+		//read chunk to chunk stream
 		if err = cs.readChunk(rc.conn, rc.remoteChunkSize); err != nil {
 			return nil, err
 		}

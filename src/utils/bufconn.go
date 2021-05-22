@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-type ReaderPeeker interface {
+type ReadPeeker interface {
 	io.Reader
 	Peek(n int) ([]byte, error)
 }

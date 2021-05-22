@@ -25,12 +25,12 @@ func newChunkBasicHeaderForWrite(chunkStreamID uint32, fmt Fmt) (*chunkBasicHead
 }
 
 func (cbh *chunkBasicHeader) Read(r io.Reader) error {
-	b, err := utils.ReadByte(r)
+	firstByte, err := utils.ReadByte(r)
 	if err != nil {
 		return errors.Wrap(err, "utils read byte")
 	}
-	cbh.fmt = Fmt(b >> 6)
-	tmpChunkStreamID := b & 0x3f
+	cbh.fmt = Fmt(firstByte >> 6)
+	tmpChunkStreamID := firstByte & 0x3f
 	if tmpChunkStreamID == 0 { //2B, chunkStreamID: 64+[0,255]
 		if b, err := utils.ReadByte(r); err != nil {
 			return err
@@ -44,7 +44,10 @@ func (cbh *chunkBasicHeader) Read(r io.Reader) error {
 		} else {
 			cbh.chunkStreamID = uint32(num) + 64
 		}
-	} else { //1B, chunkStreamID:[2,63]
+	} else if tmpChunkStreamID == 2 { //chunk stream ID with value 2 is reserved for low-level protocol control messages and commands
+		cbh.chunkStreamID = uint32(tmpChunkStreamID)
+		//return errors.Wrapf(core.ErrorNotSupported, "got chunk stream ID 2")//todo 不能卡死，需要兼容，ffmpeg 4.4
+	} else { //1B, chunkStreamID:[3,63]
 		cbh.chunkStreamID = uint32(tmpChunkStreamID)
 	}
 	return nil

@@ -92,19 +92,19 @@ func WriteBytes(w io.Writer, buf []byte) error {
 }
 
 //used for unit test
-type BufferWithMaxCapacity struct {
+type WriterBufferWithMaxCapacity struct {
 	data     []byte
 	capacity int
 }
 
-func NewBufferWithMaxCapacity(capacity int) (*BufferWithMaxCapacity, error) {
-	return &BufferWithMaxCapacity{
+func NewBufferWithMaxCapacity(capacity int) (*WriterBufferWithMaxCapacity, error) {
+	return &WriterBufferWithMaxCapacity{
 		data:     make([]byte, 0, capacity),
 		capacity: capacity,
 	}, nil
 }
 
-func (b *BufferWithMaxCapacity) Write(buf []byte) (int, error) {
+func (b *WriterBufferWithMaxCapacity) Write(buf []byte) (int, error) {
 	if len(b.data)+len(buf) > b.capacity {
 		return 0, fmt.Errorf("overflow")
 	}
@@ -117,6 +117,6 @@ func (b *BufferWithMaxCapacity) Write(buf []byte) (int, error) {
 	}
 }
 
-func (b *BufferWithMaxCapacity) Bytes() []byte {
+func (b *WriterBufferWithMaxCapacity) Bytes() []byte {
 	return b.data
 }

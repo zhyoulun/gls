@@ -31,7 +31,7 @@ func newHandshake() (*handshake, error) {
 	return &handshake{}, nil
 }
 
-func (h *handshake) do(rw io.ReadWriter) error {
+func (h *handshake) Do(rw io.ReadWriter) error {
 	if err := h.readC0(rw); err != nil {
 		return err
 	}

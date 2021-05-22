@@ -42,11 +42,11 @@ func (cs *chunkStream) toCsvLine() string {
 		cs.messageLength, cs.messageTypeID, cs.messageStreamID)
 }
 
-func newChunkStreamForRead(fmt Fmt, chunkStreamID uint32) (*chunkStream, error) {
+func newChunkStreamForRead(basicHeader *chunkBasicHeader) (*chunkStream, error) {
 	return &chunkStream{
-		chunkStreamID: chunkStreamID,
+		chunkStreamID: basicHeader.chunkStreamID,
 		tmp: chunkStreamTmp{
-			currentFmt: fmt,
+			currentFmt: basicHeader.fmt,
 		},
 	}, nil
 }
@@ -132,7 +132,7 @@ func (cs *chunkStream) got() bool {
 	return cs.messageLength == cs.dataIndex
 }
 
-func (cs *chunkStream) readChunk(r utils.ReaderPeeker, chunkSize uint32) error {
+func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 	switch cs.tmp.currentFmt {
 	case fmt0: //11B, this type must be used at the start of a chunk stream
 		cs.fmt = fmt0
