@@ -152,6 +152,11 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			cs.messageTypeID = uint8(messageTypeID)
 		}
 		//cs.messageStreamID
+		//typically, all messages in the same chunk stream will come from the same message stream.
+		//while it is possible to multiplex separate message streams into the same chunk stream,
+		//this defeats the benefits of the header compression.
+		//However, if one message stream is closed and another one subsequently opened,
+		//there is no reason an existing chunk stream cannot be reused by sending a new type-0 chunk.
 		if cs.messageStreamID, err = utils.ReadUintLE(r, 4); err != nil {
 			return err
 		}
@@ -170,12 +175,11 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			cs.tmp.timestampDelta = 0
 		}
 		//cs.data init
-		cs.data = make([]byte, cs.messageLength)
-		cs.dataIndex = 0
-		cs.tmp.firstChunkReadDone = true
-	case fmt1: //7B, stream with variable-sized message(for example: many video formats) should use this format for the first chunk of each new message after the first
+		cs.initData(cs.messageLength)
+	case fmt1: //7B, stream with variable-sized message(for example: many video formats) should use this format for the first chunk of each new message after the first(//todo first what??)
 		cs.fmt = fmt1
 		var err error
+		//for a type-1 or type-2 chunk, the difference between the previous chunk's timestamp and the current chunk's timestamp is sent here.
 		var timestampDelta uint32
 		if timestampDelta, err = utils.ReadUintBE(r, 3); err != nil {
 			return err
@@ -205,9 +209,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			cs.tmp.timestampDelta = timestampDelta
 		}
 		//cs.data init
-		cs.data = make([]byte, cs.messageLength)
-		cs.dataIndex = 0
-		cs.tmp.firstChunkReadDone = true
+		cs.initData(cs.messageLength)
 	case fmt2: //3B, stream with constant-sized messages(for example: some audio and data formats) should use this format for the first chunk of each message after the first
 		cs.fmt = fmt2
 		var err error
@@ -230,21 +232,29 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			cs.tmp.timestampDelta = timestampDelta
 		}
 		//cs.data init
-		cs.data = make([]byte, cs.messageLength)
-		cs.dataIndex = 0
-		cs.tmp.firstChunkReadDone = true
+		cs.initData(cs.messageLength)
 	case fmt3: //0B; fmt3不可能是ChunkStream的第一个chunk
+		//chunks of this type take values from the preceding chunk for the same chunk stream id.
+		//when a single message is split into chunks, all chunks of a message except the first one SHOULD use this type. Refer to Example 2
+		//a stream consisting of messages of exactly the same size, stream id and spacing in time SHOULD use the this type for all chunks after a chunk of type 2. Refer to Example 1
+		//if the delta between the first message and the second message is same as the timestamp of the first message, then a chunk of type 3 could immediately follow the chunk of type 0
+		//		as there is no need for a chunk of type 2 to register the delta
+		//if a type 3 chunk follows a type 0 chunk, then the timestamp delta for this type 3 chunk is the same as the timestamp of the type 0 chunk
 		var err error
 		if cs.dataIndex == cs.messageLength { //todo ??不明白
 			//cs.timestamp
 			switch cs.fmt {
 			case fmt0:
 				if cs.tmp.extended {
+					//todo 信息需要再具体下
+					//extended timestamp
+					//this field is present in type 3 chunks when the most recent type 0,1, or 2 chunk for the same chunk stream id
+					//	indicated the presence of an extended timestamp field
 					var extendedTimestamp uint32
 					if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 						return err
 					}
-					cs.timestamp = extendedTimestamp
+					cs.timestamp = extendedTimestamp //todo 这行代码的位置有问题吗？
 				}
 				//todo 为什么这里没有else？
 			case fmt1, fmt2:
@@ -258,12 +268,11 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 				} else {
 					timestampDelta = cs.tmp.timestampDelta
 				}
-				cs.timestamp += timestampDelta
+				cs.timestamp += timestampDelta //todo 这行代码的位置有问题吗？
 			}
 			//cs.data init
-			cs.data = make([]byte, cs.messageLength) //todo 这里的cs.messageLength从哪里来？从上个有相同chunkStreamID的message来？
-			cs.dataIndex = 0
-			cs.tmp.firstChunkReadDone = true
+			//todo 这里的cs.messageLength从哪里来？从上个有相同chunkStreamID的message来？
+			cs.initData(cs.messageLength)
 		} else {
 			if cs.tmp.extended {
 				//todo 这段逻辑比较神奇
@@ -284,6 +293,10 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 
 	//cs.data read
 	//一般读chunkSize个字节数，最后一次可能比chunkSize小
+	//message length is for a type-0 or type-1 chunk.
+	//Note this is generally not the same as the length of the chunk payload.
+	//the chunk payload length is the maximum chunk size for all but the last chunk,
+	//		and the remainder(which may be the entire length, for small messages) for the last chunk//todo 什么意思??
 	readLength := cs.messageLength - cs.dataIndex
 	if readLength > chunkSize {
 		readLength = chunkSize
@@ -302,6 +315,12 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 	})
 
 	return nil
+}
+
+func (cs *chunkStream) initData(messageLength uint32) {
+	cs.data = make([]byte, messageLength)
+	cs.dataIndex = 0
+	cs.tmp.firstChunkReadDone = true
 }
 
 func (cs *chunkStream) writeChunk(w io.Writer, chunkSize uint32) error {

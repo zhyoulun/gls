@@ -138,7 +138,7 @@ func Test_handshake_writeS0(t *testing.T) {
 		assert.Equal(t, []byte{rtmpVersion}, buf.Bytes())
 	}
 	{
-		buf, _ := utils.NewBufferWithMaxCapacity(0)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(0)
 		h, _ := newHandshake()
 		err := h.writeS0(buf)
 		assert.Error(t, err)
@@ -161,19 +161,19 @@ func Test_handshake_writeS1(t *testing.T) {
 		assert.Equal(t, expect, buf.Bytes())
 	}
 	{
-		buf, _ := utils.NewBufferWithMaxCapacity(193)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(193)
 		h, _ := newHandshake()
 		err := h.writeS1(buf)
 		assert.Error(t, err)
 	}
 	{
-		buf, _ := utils.NewBufferWithMaxCapacity(7)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(7)
 		h, _ := newHandshake()
 		err := h.writeS1(buf)
 		assert.Error(t, err)
 	}
 	{
-		buf, _ := utils.NewBufferWithMaxCapacity(3)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(3)
 		h, _ := newHandshake()
 		err := h.writeS1(buf)
 		assert.Error(t, err)
@@ -193,19 +193,19 @@ func Test_handshake_writeS2(t *testing.T) {
 		assert.Equal(t, expect, buf.Bytes())
 	}
 	{
-		buf, _ := utils.NewBufferWithMaxCapacity(193)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(193)
 		h, _ := newHandshake()
 		err := h.writeS2(buf)
 		assert.Error(t, err)
 	}
 	{
-		buf, _ := utils.NewBufferWithMaxCapacity(7)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(7)
 		h, _ := newHandshake()
 		err := h.writeS2(buf)
 		assert.Error(t, err)
 	}
 	{
-		buf, _ := utils.NewBufferWithMaxCapacity(3)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(3)
 		h, _ := newHandshake()
 		err := h.writeS2(buf)
 		assert.Error(t, err)

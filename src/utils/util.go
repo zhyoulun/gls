@@ -92,19 +92,19 @@ func WriteBytes(w io.Writer, buf []byte) error {
 }
 
 //used for unit test
-type WriterBufferWithMaxCapacity struct {
+type WriteBufferWithMaxCapacity struct {
 	data     []byte
 	capacity int
 }
 
-func NewBufferWithMaxCapacity(capacity int) (*WriterBufferWithMaxCapacity, error) {
-	return &WriterBufferWithMaxCapacity{
+func NewWriteBufferWithMaxCapacity(capacity int) (*WriteBufferWithMaxCapacity, error) {
+	return &WriteBufferWithMaxCapacity{
 		data:     make([]byte, 0, capacity),
 		capacity: capacity,
 	}, nil
 }
 
-func (b *WriterBufferWithMaxCapacity) Write(buf []byte) (int, error) {
+func (b *WriteBufferWithMaxCapacity) Write(buf []byte) (int, error) {
 	if len(b.data)+len(buf) > b.capacity {
 		return 0, fmt.Errorf("overflow")
 	}
@@ -117,6 +117,50 @@ func (b *WriterBufferWithMaxCapacity) Write(buf []byte) (int, error) {
 	}
 }
 
-func (b *WriterBufferWithMaxCapacity) Bytes() []byte {
+func (b *WriteBufferWithMaxCapacity) Bytes() []byte {
 	return b.data
+}
+
+//used for unit test
+type ReadBuffer struct {
+	data        []byte
+	toReadIndex int
+}
+
+func NewReadBuffer(initData []byte) (*ReadBuffer, error) {
+	data := make([]byte, 0)
+	data = append(data, initData...)
+	return &ReadBuffer{
+		data:        data,
+		toReadIndex: 0,
+	}, nil
+}
+
+func (b *ReadBuffer) Write(p []byte) {
+	b.data = append(b.data, p...)
+}
+
+func (b *ReadBuffer) Read(p []byte) (int, error) {
+	if b.toReadIndex == len(b.data) {
+		return 0, fmt.Errorf("eof")
+	}
+	if len(b.data)-b.toReadIndex <= len(p) {
+		copy(p[:len(b.data)-b.toReadIndex], b.data[b.toReadIndex:])
+		l := len(b.data) - b.toReadIndex
+		b.toReadIndex = len(b.data)
+		return l, nil
+	} else {
+		copy(p, b.data[b.toReadIndex:b.toReadIndex+len(p)])
+		l := len(p)
+		b.toReadIndex += len(p)
+		return l, nil
+	}
+}
+
+func (b *ReadBuffer) Peek(n int) ([]byte, error) {
+	if len(b.data)-b.toReadIndex >= n {
+		return b.data[b.toReadIndex : b.toReadIndex+n], nil
+	} else {
+		return nil, fmt.Errorf("not enough data in buffer")
+	}
 }

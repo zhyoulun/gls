@@ -45,13 +45,13 @@ func Test_writeBytes(t *testing.T) {
 		assert.Equal(t, []byte(`abc`), buf.Bytes())
 	}
 	{
-		buf, _ := NewBufferWithMaxCapacity(3)
+		buf, _ := NewWriteBufferWithMaxCapacity(3)
 		err := WriteBytes(buf, []byte(`abcd`))
 		assert.Error(t, err)
 		assert.Equal(t, []byte(``), buf.data)
 	}
 	{
-		buf, _ := NewBufferWithMaxCapacity(12)
+		buf, _ := NewWriteBufferWithMaxCapacity(12)
 		err := WriteBytes(buf, []byte(`abcdef`))
 		assert.NoError(t, err)
 		assert.Equal(t, []byte(`abcdef`), buf.data)
@@ -103,7 +103,7 @@ func TestWriteUintBE(t *testing.T) {
 		assert.Equal(t, []byte{0x01, 0x02}, buf.Bytes())
 	}
 	{
-		buf, _ := NewBufferWithMaxCapacity(1)
+		buf, _ := NewWriteBufferWithMaxCapacity(1)
 		err := WriteUintBE(buf, 0x0102, 2)
 		assert.Error(t, err)
 	}
@@ -143,7 +143,7 @@ func TestWriteUintLE(t *testing.T) {
 		assert.Equal(t, []byte{0x02, 0x01}, buf.Bytes())
 	}
 	{
-		buf, _ := NewBufferWithMaxCapacity(1)
+		buf, _ := NewWriteBufferWithMaxCapacity(1)
 		err := WriteUintLE(buf, 0x0102, 2)
 		assert.Error(t, err)
 	}

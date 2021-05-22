@@ -87,31 +87,31 @@ func Test_chunkBasicHeader_Write(t *testing.T) {
 	}
 	{
 		header, _ := newChunkBasicHeaderForWrite(0, fmt0)
-		buf, _ := utils.NewBufferWithMaxCapacity(0)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(0)
 		err := header.Write(buf)
 		assert.Error(t, err)
 	}
 	{
 		header, _ := newChunkBasicHeaderForWrite(64, fmt0)
-		buf, _ := utils.NewBufferWithMaxCapacity(0)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(0)
 		err := header.Write(buf)
 		assert.Error(t, err)
 	}
 	{
 		header, _ := newChunkBasicHeaderForWrite(64, fmt0)
-		buf, _ := utils.NewBufferWithMaxCapacity(1)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(1)
 		err := header.Write(buf)
 		assert.Error(t, err)
 	}
 	{
 		header, _ := newChunkBasicHeaderForWrite(0x01f4+64, fmt0)
-		buf, _ := utils.NewBufferWithMaxCapacity(0)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(0)
 		err := header.Write(buf)
 		assert.Error(t, err)
 	}
 	{
 		header, _ := newChunkBasicHeaderForWrite(0x01f4+64, fmt0)
-		buf, _ := utils.NewBufferWithMaxCapacity(1)
+		buf, _ := utils.NewWriteBufferWithMaxCapacity(1)
 		err := header.Write(buf)
 		assert.Error(t, err)
 	}
