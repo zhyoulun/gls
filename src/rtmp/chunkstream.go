@@ -108,10 +108,12 @@ func newChunkStreamForPacket(p *av.Packet) (*chunkStream, error) {
 
 //chunk stream中的临时变量，对chunk stream本身没作用，主要是用来基于若干个chunk组合出一个完整的message based on chunk stream
 type chunkStreamTmp struct {
-	currentFmt         Fmt  //chunk type
-	extended           bool //是否需要读取extend timestamp，用于fmt3 chunk的读取场景
-	firstChunkReadDone bool //chunkStream中，第一个chunk读取完成
-	timestampDelta     uint32
+	currentFmt         Fmt    //chunk type
+	extended           bool   //是否需要读取extend timestamp，用于fmt3 chunk的读取场景
+	firstChunkReadDone bool   //chunkStream中，第一个chunk读取完成
+	timestamp          uint32 //used for read storage
+	timestampDelta     uint32 //used for read storage
+	extendedTimestamp  uint32 //used for read storage
 	//extended          bool
 	//extendedTimestamp uint32
 	//readDone   bool
@@ -136,9 +138,8 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 	switch cs.tmp.currentFmt {
 	case fmt0: //11B, this type must be used at the start of a chunk stream
 		cs.fmt = fmt0
-		var timestamp uint32
 		var err error
-		if timestamp, err = utils.ReadUintBE(r, 3); err != nil {
+		if cs.tmp.timestamp, err = utils.ReadUintBE(r, 3); err != nil {
 			return err
 		}
 		//cs.messageLength
@@ -161,7 +162,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			return err
 		}
 		//cs.timestamp
-		if timestamp == 0xffffff {
+		if cs.tmp.timestamp == 0xffffff {
 			var extendedTimestamp uint32
 			if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
@@ -170,7 +171,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			cs.tmp.extended = true
 			cs.tmp.timestampDelta = 0
 		} else {
-			cs.clock = timestamp
+			cs.clock = cs.tmp.timestamp
 			cs.tmp.extended = false
 			cs.tmp.timestampDelta = 0
 		}
@@ -180,8 +181,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 		cs.fmt = fmt1
 		var err error
 		//for a type-1 or type-2 chunk, the difference between the previous chunk's timestamp and the current chunk's timestamp is sent here.
-		var timestampDelta uint32
-		if timestampDelta, err = utils.ReadUintBE(r, 3); err != nil {
+		if cs.tmp.timestampDelta, err = utils.ReadUintBE(r, 3); err != nil {
 			return err
 		}
 		//cs.messageLength
@@ -195,7 +195,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			cs.messageTypeID = uint8(messageTypeID)
 		}
 		//cs.timestamp
-		if timestampDelta == 0xffffff {
+		if cs.tmp.timestampDelta == 0xffffff {
 			var extendedTimestamp uint32
 			if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
@@ -204,21 +204,20 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			cs.tmp.extended = true
 			cs.tmp.timestampDelta = extendedTimestamp
 		} else {
-			cs.clock += timestampDelta
+			cs.clock += cs.tmp.timestampDelta
 			cs.tmp.extended = false
-			cs.tmp.timestampDelta = timestampDelta
+			//cs.tmp.timestampDelta = cs.tmp.timestampDelta
 		}
 		//cs.data init
 		cs.initData(cs.messageLength)
 	case fmt2: //3B, stream with constant-sized messages(for example: some audio and data formats) should use this format for the first chunk of each message after the first
 		cs.fmt = fmt2
 		var err error
-		var timestampDelta uint32
-		if timestampDelta, err = utils.ReadUintBE(r, 3); err != nil {
+		if cs.tmp.timestampDelta, err = utils.ReadUintBE(r, 3); err != nil {
 			return err
 		}
 		//cs.timestamp
-		if timestampDelta == 0xffffff {
+		if cs.tmp.timestampDelta == 0xffffff {
 			var extendedTimestamp uint32
 			if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
@@ -227,9 +226,9 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			cs.tmp.extended = true
 			cs.tmp.timestampDelta = extendedTimestamp
 		} else {
-			cs.clock += timestampDelta
+			cs.clock += cs.tmp.timestampDelta
 			cs.tmp.extended = false
-			cs.tmp.timestampDelta = timestampDelta
+			//cs.tmp.timestampDelta = cs.tmp.timestampDelta
 		}
 		//cs.data init
 		cs.initData(cs.messageLength)
@@ -250,21 +249,19 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 					//extended timestamp
 					//this field is present in type 3 chunks when the most recent type 0,1, or 2 chunk for the same chunk stream id
 					//	indicated the presence of an extended timestamp field
-					var extendedTimestamp uint32
-					if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
+					if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 						return err
 					}
-					cs.clock = extendedTimestamp //todo 这行代码的位置有问题吗？
+					cs.clock = cs.tmp.extendedTimestamp //todo 这行代码的位置有问题吗？
 				}
 				//todo 为什么这里没有else？
 			case fmt1, fmt2:
 				var timestampDelta uint32
 				if cs.tmp.extended {
-					var extendedTimestamp uint32
-					if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
+					if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 						return err
 					}
-					timestampDelta = extendedTimestamp
+					timestampDelta = cs.tmp.extendedTimestamp
 				} else {
 					timestampDelta = cs.tmp.timestampDelta
 				}
