@@ -1,7 +1,6 @@
 package rtmp
 
 import (
-	"encoding/binary"
 	"fmt"
 	"github.com/zhyoulun/gls/src/av"
 	"github.com/zhyoulun/gls/src/core"
@@ -239,72 +238,78 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 		//if the delta between the first message and the second message is same as the timestamp of the first message, then a chunk of type 3 could immediately follow the chunk of type 0
 		//		as there is no need for a chunk of type 2 to register the delta
 		//if a type 3 chunk follows a type 0 chunk, then the timestamp delta for this type 3 chunk is the same as the timestamp of the type 0 chunk
-		var err error
-		if cs.dataIndex == cs.messageLength { //todo ??不明白
-			//cs.timestamp
-			switch cs.fmt {
-			case fmt0:
-				if cs.tmp.extended {
-					//todo 信息需要再具体下
-					//extended timestamp
-					//this field is present in type 3 chunks when the most recent type 0,1, or 2 chunk for the same chunk stream id
-					//	indicated the presence of an extended timestamp field
-					if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
-						return err
-					}
-					cs.clock = cs.tmp.extendedTimestamp //todo 这行代码的位置有问题吗？
-				}
-				//todo 为什么这里没有else？
-			case fmt1, fmt2:
-				var timestampDelta uint32
-				if cs.tmp.extended {
-					if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
-						return err
-					}
-					timestampDelta = cs.tmp.extendedTimestamp
-				} else {
-					timestampDelta = cs.tmp.timestampDelta
-				}
-				cs.clock += timestampDelta //todo 这行代码的位置有问题吗？
-			}
-			//cs.data init
-			//todo 这里的cs.messageLength从哪里来？从上个有相同chunkStreamID的message来？
-			cs.initData(cs.messageLength)
-		} else {
-			if cs.tmp.extended {
-				//todo 这段逻辑比较神奇
-				b, err := r.Peek(4)
-				if err != nil {
-					return err
-				}
-				tmpTS := binary.BigEndian.Uint32(b)
-				if tmpTS == cs.clock {
-					_, _ = utils.ReadBytes(r, 4) //discard
-				}
-			}
-			//todo 为啥没有else呢？
-		}
+
+		//var err error
+		//if cs.dataIndex == cs.messageLength { //todo ??不明白
+		//	//cs.timestamp
+		//	switch cs.fmt {
+		//	case fmt0:
+		//		if cs.tmp.extended {
+		//			//todo 信息需要再具体下
+		//			//extended timestamp
+		//			//this field is present in type 3 chunks when the most recent type 0,1, or 2 chunk for the same chunk stream id
+		//			//	indicated the presence of an extended timestamp field
+		//			if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
+		//				return err
+		//			}
+		//			cs.clock = cs.tmp.extendedTimestamp //todo 这行代码的位置有问题吗？
+		//		}
+		//		//todo 为什么这里没有else？
+		//	case fmt1, fmt2:
+		//		var timestampDelta uint32
+		//		if cs.tmp.extended {
+		//			if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
+		//				return err
+		//			}
+		//			timestampDelta = cs.tmp.extendedTimestamp
+		//		} else {
+		//			timestampDelta = cs.tmp.timestampDelta
+		//		}
+		//		cs.clock += timestampDelta //todo 这行代码的位置有问题吗？
+		//	}
+		//	//cs.data init
+		//	//todo 这里的cs.messageLength从哪里来？从上个有相同chunkStreamID的message来？
+		//	cs.initData(cs.messageLength)
+		//} else {
+		//	if cs.tmp.extended {
+		//		//todo 这段逻辑比较神奇
+		//		b, err := r.Peek(4)
+		//		if err != nil {
+		//			return err
+		//		}
+		//		tmpTS := binary.BigEndian.Uint32(b)
+		//		if tmpTS == cs.clock {
+		//			_, _ = utils.ReadBytes(r, 4) //discard
+		//		}
+		//	}
+		//	//todo 为啥没有else呢？
+		//}
 
 		//换一种写法
 		//read extended timestamp
-		//var extendedTimestamp uint32
-		//if cs.tmp.extended {
-		//	var err error
-		//	if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
-		//		return err
-		//	}
-		//}
-		//if cs.fmt == fmt0 {
-		//	if cs.tmp.extended {
-		//		cs.timestamp = extendedTimestamp
-		//	} else {
-		//		//nothing changed
-		//	}
-		//} else {
-		//	if cs.tmp.extended {
-		//		cs.timestamp += extendedTimestamp
-		//	}
-		//}
+		if cs.tmp.extended {
+			var err error
+			if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
+				return err
+			}
+		}
+		if cs.dataIndex == cs.messageLength { //example 1
+			//set cs.clock
+			if cs.fmt == fmt0 {
+				if cs.tmp.extended {
+					cs.clock = cs.tmp.extendedTimestamp
+				} else {
+					//nothing changed
+				}
+			} else {
+				if cs.tmp.extended {
+					cs.clock += cs.tmp.extendedTimestamp
+				} else {
+					cs.clock += cs.tmp.timestampDelta
+				}
+			}
+			cs.initData(cs.messageLength)
+		}
 
 	default:
 		return core.ErrorImpossible
