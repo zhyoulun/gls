@@ -57,6 +57,11 @@ func (m *message) GetAvType() (uint8, error) {
 	return avType, nil
 }
 
+func (m *message) String() string {
+	return fmt.Sprintf("timestamp: %d, messageLength: %d, messageTypeID: %d, messageStreamID: %d, dataIndex: %d",
+		m.cs.clock, m.cs.messageLength, m.cs.messageTypeID, m.cs.messageStreamID, m.cs.dataIndex)
+}
+
 func newMessage(cs *chunkStream) (*message, error) {
 	return &message{
 		cs: cs,
@@ -192,7 +197,7 @@ func newPCMSetChunkSize(size uint32) (*message, error) {
 }
 
 func newCommandMessage(chunkStreamID, messageStreamID uint32, data []byte) (*message, error) {
-	m, err := newMessage2(chunkStreamID, 0, uint32(len(data)), typeCommandAMF0, messageStreamID) //todo 为什么没有amf3
+	m, err := newMessage2(chunkStreamID, 0, uint32(len(data)), typeCommandAMF0, messageStreamID)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +208,8 @@ func newCommandMessage(chunkStreamID, messageStreamID uint32, data []byte) (*mes
 }
 
 func newBaseUserControlMessage(eventType, dataLength uint32) (*message, error) {
-	m, err := newMessage2(2, 0, dataLength+2, typeUserControl, 1)
+	var timestamp uint32 = 0 //ignored
+	m, err := newMessage2(chunkStreamID2, timestamp, dataLength+2, typeUserControl, messageStreamID0)
 	if err != nil {
 		return nil, err
 	}

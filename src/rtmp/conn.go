@@ -19,8 +19,12 @@ type Conn struct {
 
 	localMaximumChunkSize  uint32
 	remoteMaximumChunkSize uint32 //the maximum chunk size should be at least 128 bytes, and must be at least 1 byte
-	remoteWindowAckSize    uint32
-	receivedSize           uint32
+
+	localWindowAckSize  uint32
+	remoteWindowAckSize uint32
+	receivedSize        uint32
+
+	localPeerBandwidth uint32
 
 	chunkStreams map[uint32]*chunkStream
 
@@ -37,7 +41,11 @@ func NewConn(conn utils.PeekerConn) (*Conn, error) {
 
 		localMaximumChunkSize:  defaultLocalMaximumChunkSize,
 		remoteMaximumChunkSize: defaultRemoteMaximumChunkSize,
-		remoteWindowAckSize:    2500000, //todo ??
+
+		localWindowAckSize:  2.5e6, //todo ??
+		remoteWindowAckSize: 2.5e6, //todo ??
+
+		localPeerBandwidth: 2.5e6, //todo ??
 
 		chunkStreams: make(map[uint32]*chunkStream),
 	}, nil
@@ -228,15 +236,13 @@ func (c *Conn) handleMessage(chunkStreamID, messageStreamID uint32, messageTypeI
 	case typeDataAMF0: //todo
 
 	case typeSharedObjectAMF3: //todo
-		return nil
 	case typeSharedObjectAMF0: //todo
-		return nil
 
-	case typeCommandAMF3,
-		typeCommandAMF0:
+	case typeCommandAMF3: //todo
+		return errors.Wrapf(core.ErrorNotImplemented, "typeCommandAMF3")
+	case typeCommandAMF0:
 		return c.handleCommandMessage(chunkStreamID, messageStreamID, messageTypeID, data, timestamp)
 	case typeAggregate: //todo
-		return nil
 	default:
 		return errors.Wrapf(core.ErrorNotSupported, "messageTypeID: %d", messageTypeID)
 	}
@@ -246,15 +252,12 @@ func (c *Conn) handleMessage(chunkStreamID, messageStreamID uint32, messageTypeI
 
 func (c *Conn) handleCommandMessage(chunkStreamID, messageStreamID uint32, typeID uint8, data []byte, timestamp uint32) error {
 	log.Tracef("handle command message, chunkStreamID: %d, messageStreamID: %d, typeID: %d", chunkStreamID, messageStreamID, typeID)
-	if typeID == typeCommandAMF3 { //todo ?
-		data = data[1:]
-	}
 	amfDecoder, err := amf.NewAmf()
 	if err != nil {
 		return err
 	}
 	r := bytes.NewReader(data)
-	vs, err := amfDecoder.DecodeBatch(r, amf.Amf0) //todo 需要确认这里只有amf0吗？
+	vs, err := amfDecoder.DecodeBatch(r, amf.Amf0)
 	if err != nil {
 		return errors.Wrap(err, "amf decoder decode batch")
 	}
@@ -274,26 +277,26 @@ func (c *Conn) handleCommandMessage(chunkStreamID, messageStreamID uint32, typeI
 	}
 
 	switch command {
-	case commandConnect:
+	case commandNetConnectionConnect:
 		return c.handleCommandConnect(chunkStreamID, messageStreamID, vs[1:])
-	case commandCall: //todo
-	case commandCreateStream:
+	case commandNetConnectionCall: //todo
+	case commandNetConnectionCreateStream:
 		return c.handleCommandCreateStream(chunkStreamID, messageStreamID, vs[1:])
-	case commandPlay:
+	case commandNetStreamPlay:
 		c.readMessageDone = true
 		return c.handleCommandPlay(chunkStreamID, messageStreamID, vs[1:])
-	case commandPlay2: //todo
-	case commandDeleteStream: //todo
-	case commandCloseStream: //todo
-	case commandReceiveAudio: //todo
-	case commandReceiveVideo: //todo
-	case commandPublish:
+	case commandNetStreamPlay2: //todo
+	case commandNetStreamDeleteStream: //todo
+	case commandNetStreamCloseStream: //todo
+	case commandNetStreamReceiveAudio: //todo
+	//NetStream send the receiveAudio message to inform the server whether to send or not to send the audio to the client
+	case commandNetStreamReceiveVideo: //todo
+	case commandNetStreamPublish:
 		c.readMessageDone = true
 		c.isPublish = true
 		return c.handleCommandPublish(chunkStreamID, messageStreamID, vs[1:])
-	case commandSeek: //todo
-	case commandPause: //todo
-	case commandOnStatus: //todo
+	case commandNetStreamSeek: //todo
+	case commandNetStreamPause: //todo
 	default:
 		log.Warnf("unknown command: %s", command)
 	}
@@ -328,87 +331,108 @@ func (c *Conn) handleProtocolControlMessage(typeID uint8, data []byte) error {
 		}
 		c.remoteWindowAckSize = binary.BigEndian.Uint32(data)
 	case typeSetPeerBandwidth:
-		//todo
-		return core.ErrorNotImplemented
+		if n != 5 {
+			return fmt.Errorf("set peer bandwidth error, length: %d", n)
+		}
+		//todo peer bandwidth, limit type strategy
 	default:
 		return core.ErrorNotSupported
 	}
 	return nil
 }
 
+//1. client -> server: send connect command(connect)
+//2. server -> client: window acknowledgement size
+//3. server -> client: set peer bandwidth
+//4. client -> server: window acknowledgement size -- 这个不在该函数中处理
+//5. server -> client: user control message(StreamBegin)
+//6. server -> client: command message(_result - connect response)
 func (c *Conn) handleCommandConnect(chunkStreamID, messageStreamID uint32, vs []interface{}) error {
 	if len(vs) != 2 {
 		return errors.Errorf("handle command connect, len(vs) error, want: 2, got: %d", len(vs))
 	}
-	var transactionID float64
-	switch vs[0].(type) {
-	case float64:
-		transactionID = vs[0].(float64)
-		if transactionID != 1 {
-			return fmt.Errorf("parse transcation id, want: 1, got: %f", transactionID)
-		}
-	}
-	switch vs[1].(type) {
-	case amf.AmfObject:
-		obj := vs[1].(amf.AmfObject)
-		if v, ok := obj["app"]; ok {
-			c.connInfo.App = v.(string)
-		}
-		if v, ok := obj["flashver"]; ok {
-			c.connInfo.Flashver = v.(string)
-		}
-		if v, ok := obj["swfUrl"]; ok {
-			c.connInfo.SwfUrl = v.(string)
-		}
-		if v, ok := obj["tcUrl"]; ok {
-			c.connInfo.TcUrl = v.(string)
-		}
-		if v, ok := obj["fpad"]; ok {
-			c.connInfo.Fpad = v.(bool)
-		}
-		if v, ok := obj["audioCodecs"]; ok {
-			c.connInfo.AudioCodecs = int(v.(float64))
-		}
-		if v, ok := obj["videoCodecs"]; ok {
-			c.connInfo.VideoCodecs = int(v.(float64))
-		}
-		if v, ok := obj["videoFunction"]; ok {
-			c.connInfo.VideoFunction = int(v.(float64))
-		}
-		if v, ok := obj["pageUrl"]; ok {
-			c.connInfo.PageUrl = v.(string)
-		}
-		if v, ok := obj["objectEncoding"]; ok {
-			c.connInfo.ObjectEncoding = v.(float64)
-		}
-		if v, ok := obj["type"]; ok {
-			c.connInfo.Type = v.(string)
-		}
-	}
-	log.Tracef("handle command connect, connInfo: %+v", c.connInfo)
 
-	if cs, err := newPCMWindowAcknowledgementSize(2.5e6); err != nil { //todo 为什么是2.5e6
+	var transactionID float64
+	var ok bool
+	transactionID, ok = vs[0].(float64)
+	if !ok {
+		return fmt.Errorf("parse transaction id fail, not float64")
+	}
+	if transactionID != transactionID1 {
+		return fmt.Errorf("parse transcation id, want: 1, got: %f", transactionID)
+	}
+
+	obj, ok := vs[1].(amf.AmfObject)
+	if !ok {
+		return fmt.Errorf("parse Command Object fail, not AmfObject")
+	}
+	log.Debugf("command object: %s", obj)
+	if v, ok := obj["app"]; ok {
+		c.connInfo.App = v.(string)
+	}
+	if v, ok := obj["flashver"]; ok {
+		c.connInfo.Flashver = v.(string)
+	}
+	if v, ok := obj["swfUrl"]; ok {
+		c.connInfo.SwfUrl = v.(string)
+	}
+	if v, ok := obj["tcUrl"]; ok {
+		c.connInfo.TcUrl = v.(string)
+	}
+	if v, ok := obj["fpad"]; ok {
+		c.connInfo.Fpad = v.(bool)
+	}
+	if v, ok := obj["audioCodecs"]; ok {
+		c.connInfo.AudioCodecs = int(v.(float64))
+	}
+	if v, ok := obj["videoCodecs"]; ok {
+		c.connInfo.VideoCodecs = int(v.(float64))
+	}
+	if v, ok := obj["videoFunction"]; ok {
+		c.connInfo.VideoFunction = int(v.(float64))
+	}
+	if v, ok := obj["pageUrl"]; ok {
+		c.connInfo.PageUrl = v.(string)
+	}
+	if v, ok := obj["objectEncoding"]; ok {
+		c.connInfo.ObjectEncoding = v.(float64)
+	}
+	if v, ok := obj["type"]; ok {
+		c.connInfo.Type = v.(string)
+	}
+
+	log.Infof("handle command connect, connInfo: %+v", c.connInfo)
+
+	if m, err := newPCMWindowAcknowledgementSize(c.localWindowAckSize); err != nil {
+		return err
+	} else {
+		if err := c.writeMessage(m); err != nil {
+			return err
+		}
+	}
+	if cs, err := newPCMSetPeerBandwidth(c.localPeerBandwidth); err != nil {
 		return err
 	} else {
 		if err := c.writeMessage(cs); err != nil {
 			return err
 		}
 	}
-	if cs, err := newPCMSetPeerBandwidth(2.5e6); err != nil { //todo 为什么是2.5e6
+	//todo ?? 这里和协议对不上，但livego等都在connect是实现了set chunk size，并且如果缺少这句话，无法推流
+	if m, err := newPCMSetChunkSize(c.localMaximumChunkSize); err != nil {
 		return err
 	} else {
-		if err := c.writeMessage(cs); err != nil {
+		if err := c.writeMessage(m); err != nil {
 			return err
 		}
 	}
-	if cs, err := newPCMSetChunkSize(c.localMaximumChunkSize); err != nil { //todo 是rc.chunkSize吗？
+	if m, err := newUCMStreamBegin(messageStreamID); err != nil {
 		return err
 	} else {
-		if err := c.writeMessage(cs); err != nil {
+		if err := c.writeMessage(m); err != nil {
 			return err
 		}
 	}
-	if msg, err := newNetConnectionConnectResp(transactionID, c.connInfo.ObjectEncoding); err != nil {
+	if msg, err := newNetConnectionResponseConnect(transactionID); err != nil {
 		return err
 	} else {
 		if m, err := newCommandMessage(chunkStreamID, messageStreamID, msg); err != nil {
@@ -436,7 +460,15 @@ func (c *Conn) handleCommandCreateStream(chunkStreamID, messageStreamID uint32, 
 		}
 	}
 
-	if msg, err := newCreateStreamResp(transactionID, 1); err != nil { //todo ??这里为什么是1
+	if m, err := newUCMStreamBegin(messageStreamID); err != nil {
+		return err
+	} else {
+		if err := c.writeMessage(m); err != nil {
+			return err
+		}
+	}
+
+	if msg, err := newNetConnectionResponseCreateStream(transactionID, 1); err != nil { //todo ??这里为什么是1
 		return err
 	} else {
 		if m, err := newCommandMessage(chunkStreamID, messageStreamID, msg); err != nil {
@@ -451,6 +483,12 @@ func (c *Conn) handleCommandCreateStream(chunkStreamID, messageStreamID uint32, 
 	return nil
 }
 
+//1. client -> server: command message(publish)
+//2. server -> client: user control(stream begin)
+//3. client -> server: data message(metadata)
+//4. client -> server: audio data
+//5. client -> server: set chunk size
+//5. server -> client: command message(_result - publish result)
 func (c *Conn) handleCommandPublish(chunkStreamID, messageStreamID uint32, vs []interface{}) error {
 	if len(vs) < 3 {
 		return errors.Errorf("handle command publish, len(vs) error, want: >=3, got: %d", len(vs))
@@ -459,13 +497,15 @@ func (c *Conn) handleCommandPublish(chunkStreamID, messageStreamID uint32, vs []
 	if !ok || transactionID != 5 { //todo ??
 		return errors.Errorf("parse transaction id, want float64 0, got: %+v", vs[0])
 	}
+	//vs[1] is nil
 	publishingName, ok := vs[2].(string)
 	if !ok {
 		return errors.Errorf("parse publishing name, want string, got: %+v", vs[2])
 	}
 	c.streamName = publishingName
+	//vs[3] publishing type
 
-	if msg, err := newNetStreamPublishResp(); err != nil {
+	if msg, err := newNetStreamResponsePublishStart(); err != nil {
 		return err
 	} else {
 		if m, err := newCommandMessage(chunkStreamID, messageStreamID, msg); err != nil {
@@ -480,6 +520,16 @@ func (c *Conn) handleCommandPublish(chunkStreamID, messageStreamID uint32, vs []
 	return nil
 }
 
+//CreateStream
+//1. client -> server: command message(createStream)
+//2. server -> client: command message(_result - createStream response)
+//Play
+//1. client -> server: command message(play)
+//2. server -> client: set chunk size
+//3. server -> client: user control message(stream is recorded)
+//4. server -> client: user control message(stream begin)
+//5. server -> client: command message(onStatus-play reset)
+//6. server -> client: command message(onStatus-play start)
 func (c *Conn) handleCommandPlay(chunkStreamID, messageStreamID uint32, vs []interface{}) error {
 	if len(vs) < 3 {
 		return errors.Errorf("handle command play, len(vs) error, want: >=3, got: %d", len(vs))
@@ -488,11 +538,23 @@ func (c *Conn) handleCommandPlay(chunkStreamID, messageStreamID uint32, vs []int
 	if !ok || transactionID != 4 { //todo ??
 		return errors.Errorf("parse transaction id, want float64 4, got: %+v", vs[0])
 	}
+	//vs[1] is nil
 	streamName, ok := vs[2].(string)
 	if !ok {
 		return errors.Errorf("parse stream name, want string, got: %+v", vs[2])
 	}
 	c.streamName = streamName
+	//vs[3]  start,number,optional
+	//vs[4]  duration,number,optional
+	//vs[5]  reset,number,optional
+
+	if m, err := newPCMSetChunkSize(c.localMaximumChunkSize); err != nil {
+		return err
+	} else {
+		if err := c.writeMessage(m); err != nil {
+			return err
+		}
+	}
 
 	if m, err := newUCMStreamIsRecorded(messageStreamID); err != nil {
 		return err
@@ -510,7 +572,7 @@ func (c *Conn) handleCommandPlay(chunkStreamID, messageStreamID uint32, vs []int
 		}
 	}
 
-	if msg, err := newNetStreamPlayReset(); err != nil {
+	if msg, err := newNetStreamResponsePlayReset(); err != nil {
 		return err
 	} else {
 		if m, err := newCommandMessage(chunkStreamID, messageStreamID, msg); err != nil {
@@ -522,33 +584,7 @@ func (c *Conn) handleCommandPlay(chunkStreamID, messageStreamID uint32, vs []int
 		}
 	}
 
-	if msg, err := newNetStreamPlayStart(); err != nil {
-		return err
-	} else {
-		if m, err := newCommandMessage(chunkStreamID, messageStreamID, msg); err != nil {
-			return err
-		} else {
-			if err := c.writeMessage(m); err != nil {
-				return err
-			}
-		}
-	}
-
-	//todo ??为什么需要这个
-	if msg, err := newNetStreamDataStart(); err != nil {
-		return err
-	} else {
-		if m, err := newCommandMessage(chunkStreamID, messageStreamID, msg); err != nil {
-			return err
-		} else {
-			if err := c.writeMessage(m); err != nil {
-				return err
-			}
-		}
-	}
-
-	//todo ??为什么需要这个
-	if msg, err := newNetStreamPlayPublishNotify(); err != nil {
+	if msg, err := newNetStreamResponsePlayStart(); err != nil {
 		return err
 	} else {
 		if m, err := newCommandMessage(chunkStreamID, messageStreamID, msg); err != nil {

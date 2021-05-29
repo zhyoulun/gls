@@ -32,6 +32,7 @@ const (
 	chunkStreamID2 = 2
 )
 
+//message type id
 const (
 	//protocol control message
 	//these protocol control message must have message stream id 0(messageStreamID0)(known as the control stream)
@@ -43,6 +44,8 @@ const (
 	typeSetPeerBandwidth          = 6
 
 	//user control message
+	//use control messages should use message stream id 0(messageStreamID0)(known as the control stream)
+	//	when sent over rtmp chunk stream, be send on chunk stream id 2(chunkStreamID2)
 	typeUserControl = 4
 
 	typeAudio = 8
@@ -57,8 +60,12 @@ const (
 	typeCommandAMF3 = 17
 	typeCommandAMF0 = 20
 
-	//todo metadata?
 	typeAggregate = 22
+)
+
+const (
+	transactionID0 = 0
+	transactionID1 = 1
 )
 
 //user control message events
@@ -75,53 +82,59 @@ const (
 //command name list
 const (
 	//NetConnection
-	commandConnect      = "connect"
-	commandCall         = "call"
-	commandCreateStream = "createStream"
+	commandNetConnectionConnect      = "connect"
+	commandNetConnectionCall         = "call"
+	commandNetConnectionCreateStream = "createStream"
 
 	//NetStream client->server
-	commandPlay         = "play"
-	commandPlay2        = "play2"
-	commandDeleteStream = "deleteStream"
-	commandCloseStream  = "closeStream"
-	commandReceiveAudio = "receiveAudio"
-	commandReceiveVideo = "receiveVideo"
-	commandPublish      = "publish"
-	commandSeek         = "seek"
-	commandPause        = "pause"
+	commandNetStreamPlay         = "play"
+	commandNetStreamPlay2        = "play2"
+	commandNetStreamDeleteStream = "deleteStream"
+	commandNetStreamCloseStream  = "closeStream"
+	commandNetStreamReceiveAudio = "receiveAudio"
+	commandNetStreamReceiveVideo = "receiveVideo"
+	commandNetStreamPublish      = "publish"
+	commandNetStreamSeek         = "seek"
+	commandNetStreamPause        = "pause"
 
 	//NetStream server->client
-	commandOnStatus = "onStatus"
+	commandNetStreamOnStatus = "onStatus"
+)
+
+const (
+	netStreamStatusLevelWarning = "warning"
+	netStreamStatusLevelStatus  = "status"
+	netStreamStatusLevelError   = "error"
 )
 
 //flag values for the audioCodecs property
 const (
-	supportSndNone    = 0x0001
-	supportSndAdpcm   = 0x0002
-	supportSndMp3     = 0x0004
-	supportSndIntel   = 0x0008
-	supportSndUnused  = 0x0010
-	supportSndNelly8  = 0x0020
-	supportSndNelly   = 0x0040
-	supportSndG711a   = 0x0080
-	supportSndG711u   = 0x0100
-	supportSndNelly16 = 0x0200
-	supportSndAac     = 0x0400
-	supportSndSpeex   = 0x0800
-	supportSndAll     = 0x0FFF
+	audioCodecSupportSndNone    = 0x0001
+	audioCodecSupportSndAdpcm   = 0x0002
+	audioCodecSupportSndMp3     = 0x0004
+	audioCodecSupportSndIntel   = 0x0008
+	audioCodecSupportSndUnused  = 0x0010
+	audioCodecSupportSndNelly8  = 0x0020
+	audioCodecSupportSndNelly   = 0x0040
+	audioCodecSupportSndG711a   = 0x0080
+	audioCodecSupportSndG711u   = 0x0100
+	audioCodecSupportSndNelly16 = 0x0200
+	audioCodecSupportSndAac     = 0x0400
+	audioCodecSupportSndSpeex   = 0x0800
+	audioCodecSupportSndAll     = 0x0FFF
 )
 
 //flag values for the videoCodecs property
 const (
-	supportVidUnused    = 0x0001
-	supportVidJpeg      = 0x0002
-	supportVidSorenson  = 0x0004
-	supportVidHomebrew  = 0x0008
-	supportVidVp6       = 0x0010
-	supportVidVp6alpha  = 0x0020
-	supportVidHomeBrewv = 0x0040
-	supportVidH264      = 0x0080
-	supportVidAll       = 0x00ff
+	videoCodecSupportVidUnused    = 0x0001
+	videoCodecSupportVidJpeg      = 0x0002
+	videoCodecSupportVidSorenson  = 0x0004
+	videoCodecSupportVidHomebrew  = 0x0008
+	videoCodecSupportVidVp6       = 0x0010
+	videoCodecSupportVidVp6alpha  = 0x0020
+	videoCodecSupportVidHomeBrewv = 0x0040
+	videoCodecSupportVidH264      = 0x0080
+	videoCodecSupportVidAll       = 0x00ff
 )
 
 //flag values for the videoFunction property

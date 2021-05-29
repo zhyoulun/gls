@@ -23,7 +23,7 @@ func Init() error {
 }
 
 func InitLog() error {
-	log.SetLevel(log.TraceLevel)
+	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stdout)
 	return nil
 }

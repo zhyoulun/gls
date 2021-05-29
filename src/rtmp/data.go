@@ -11,5 +11,5 @@ type ConnectCommentObject struct {
 	VideoFunction  int
 	PageUrl        string
 	ObjectEncoding float64
-	Type           string //todo 不在协议上
+	Type           string //todo 协议上没有，livego和ffmpeg有
 }
