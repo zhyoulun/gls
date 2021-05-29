@@ -6,17 +6,12 @@ import (
 	"fmt"
 	"github.com/zhyoulun/gls/src/av"
 	"github.com/zhyoulun/gls/src/core"
+	"github.com/zhyoulun/gls/src/flv"
 	"github.com/zhyoulun/gls/src/utils"
 )
 
 type message struct {
 	cs *chunkStream
-}
-
-func newMessage(cs *chunkStream) (*message, error) {
-	return &message{
-		cs: cs,
-	}, nil
 }
 
 func (m *message) toCsvHeader() string {
@@ -62,14 +57,76 @@ func (m *message) GetAvType() (uint8, error) {
 	return avType, nil
 }
 
-func newBaseProtocolControlMessage(messageLength uint32, messageTypeID uint8) (*chunkStream, error) {
-	var timestamp uint32 = 0 //ignored
-	return newChunkStreamForMessage(chunkStreamID2, timestamp, messageLength, messageTypeID, messageStreamID0)
+func newMessage(cs *chunkStream) (*message, error) {
+	return &message{
+		cs: cs,
+	}, nil
 }
 
-//protocol control message
-func newPCMWindowAcknowledgementSize(size uint32) (*chunkStream, error) {
-	cs, err := newBaseProtocolControlMessage(4, typeWindowAcknowledgementSize)
+func newMessage2(chunkStreamID, timestamp, messageLength uint32, messageTypeID uint8, messageStreamID uint32) (*message, error) {
+	cs := &chunkStream{
+		chunkStreamID:   chunkStreamID,
+		clock:           timestamp,
+		messageLength:   messageLength,
+		messageTypeID:   messageTypeID,
+		messageStreamID: messageStreamID,
+		data:            make([]byte, messageLength),
+		dataIndex:       0,
+	}
+	return &message{cs: cs}, nil
+}
+
+func newMessage3(p *av.Packet) (*message, error) {
+	var messageTypeID uint8
+	avType := p.GetAvType()
+	if avType == av.TypeAudio {
+		messageTypeID = typeAudio
+	} else if avType == av.TypeVideo {
+		messageTypeID = typeVideo
+	} else if avType == av.TypeMetadata {
+		messageTypeID = typeDataAMF0
+	} else {
+		return nil, core.ErrorImpossible
+	}
+
+	//获取data和dataLength
+	data := p.GetData()
+	var err error
+	if messageTypeID == typeDataAMF0 {
+		if data, err = flv.MetadataReformDelete(data); err != nil {
+			return nil, err
+		}
+	}
+	dataLength := uint32(len(data))
+
+	var chunkStreamID uint32
+	if avType == av.TypeAudio {
+		chunkStreamID = 4 //todo ??
+	} else if avType == av.TypeVideo || avType == av.TypeMetadata {
+		chunkStreamID = 6 //todo ??
+	} else {
+		return nil, core.ErrorImpossible
+	}
+
+	cs := &chunkStream{
+		chunkStreamID:   chunkStreamID,
+		clock:           p.GetTimestamp(),
+		messageLength:   dataLength,
+		messageTypeID:   messageTypeID,
+		messageStreamID: p.GetStreamID(),
+		data:            data,
+		dataIndex:       0,
+	}
+	return &message{cs: cs}, nil
+}
+
+func newBaseProtocolControlMessage(messageLength uint32, messageTypeID uint8) (*message, error) {
+	var timestamp uint32 = 0 //ignored
+	return newMessage2(chunkStreamID2, timestamp, messageLength, messageTypeID, messageStreamID0)
+}
+
+func newPCMAcknowledgement(size uint32) (*message, error) {
+	m, err := newBaseProtocolControlMessage(4, typeAcknowledgement)
 	if err != nil {
 		return nil, err
 	}
@@ -77,15 +134,31 @@ func newPCMWindowAcknowledgementSize(size uint32) (*chunkStream, error) {
 	if err := binary.Write(buf, binary.BigEndian, &size); err != nil {
 		return nil, err
 	}
-	if err := cs.writeToData(buf.Bytes()); err != nil {
+	if err := m.cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
-	return cs, nil
+	return m, nil
 }
 
 //protocol control message
-func newPCMSetPeerBandwidth(size uint32) (*chunkStream, error) {
-	cs, err := newBaseProtocolControlMessage(5, typeSetPeerBandwidth)
+func newPCMWindowAcknowledgementSize(size uint32) (*message, error) {
+	m, err := newBaseProtocolControlMessage(4, typeWindowAcknowledgementSize)
+	if err != nil {
+		return nil, err
+	}
+	buf := &bytes.Buffer{}
+	if err := binary.Write(buf, binary.BigEndian, &size); err != nil {
+		return nil, err
+	}
+	if err := m.cs.writeToData(buf.Bytes()); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+//protocol control message
+func newPCMSetPeerBandwidth(size uint32) (*message, error) {
+	m, err := newBaseProtocolControlMessage(5, typeSetPeerBandwidth)
 	if err != nil {
 		return nil, err
 	}
@@ -96,15 +169,15 @@ func newPCMSetPeerBandwidth(size uint32) (*chunkStream, error) {
 	if err := buf.WriteByte(limitTypeDynamic); err != nil {
 		return nil, err
 	}
-	if err := cs.writeToData(buf.Bytes()); err != nil {
+	if err := m.cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
-	return cs, nil
+	return m, nil
 }
 
 //protocol control message
-func newPCMSetChunkSize(size uint32) (*chunkStream, error) {
-	cs, err := newBaseProtocolControlMessage(4, typeSetChunkSize)
+func newPCMSetChunkSize(size uint32) (*message, error) {
+	m, err := newBaseProtocolControlMessage(4, typeSetChunkSize)
 	if err != nil {
 		return nil, err
 	}
@@ -112,25 +185,25 @@ func newPCMSetChunkSize(size uint32) (*chunkStream, error) {
 	if err := binary.Write(buf, binary.BigEndian, &size); err != nil {
 		return nil, err
 	}
-	if err := cs.writeToData(buf.Bytes()); err != nil {
+	if err := m.cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
-	return cs, nil
+	return m, nil
 }
 
-func newCommandMessage(chunkStreamID, messageStreamID uint32, data []byte) (*chunkStream, error) {
-	cs, err := newChunkStreamForMessage(chunkStreamID, 0, uint32(len(data)), typeCommandAMF0, messageStreamID) //todo 为什么没有amf3
+func newCommandMessage(chunkStreamID, messageStreamID uint32, data []byte) (*message, error) {
+	m, err := newMessage2(chunkStreamID, 0, uint32(len(data)), typeCommandAMF0, messageStreamID) //todo 为什么没有amf3
 	if err != nil {
 		return nil, err
 	}
-	if err := cs.writeToData(data); err != nil {
+	if err := m.cs.writeToData(data); err != nil {
 		return nil, err
 	}
-	return cs, nil
+	return m, nil
 }
 
-func newBaseUserControlMessage(eventType, dataLength uint32) (*chunkStream, error) {
-	cs, err := newChunkStreamForMessage(2, 0, dataLength+2, typeUserControl, 1)
+func newBaseUserControlMessage(eventType, dataLength uint32) (*message, error) {
+	m, err := newMessage2(2, 0, dataLength+2, typeUserControl, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -138,14 +211,14 @@ func newBaseUserControlMessage(eventType, dataLength uint32) (*chunkStream, erro
 	if err := utils.WriteUintBE(buf, eventType, 2); err != nil {
 		return nil, err
 	}
-	if err := cs.writeToData(buf.Bytes()); err != nil {
+	if err := m.cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
-	return cs, nil
+	return m, nil
 }
 
-func newUCMStreamIsRecorded(messageStreamID uint32) (*chunkStream, error) {
-	cs, err := newBaseUserControlMessage(EventStreamIsRecorded, 4)
+func newUCMStreamIsRecorded(messageStreamID uint32) (*message, error) {
+	m, err := newBaseUserControlMessage(EventStreamIsRecorded, 4)
 	if err != nil {
 		return nil, err
 	}
@@ -153,14 +226,14 @@ func newUCMStreamIsRecorded(messageStreamID uint32) (*chunkStream, error) {
 	if err := utils.WriteUintBE(buf, messageStreamID, 4); err != nil {
 		return nil, err
 	}
-	if err := cs.writeToData(buf.Bytes()); err != nil {
+	if err := m.cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
-	return cs, nil
+	return m, nil
 }
 
-func newUCMStreamBegin(messageStreamID uint32) (*chunkStream, error) {
-	cs, err := newBaseUserControlMessage(EventStreamBegin, 4)
+func newUCMStreamBegin(messageStreamID uint32) (*message, error) {
+	m, err := newBaseUserControlMessage(EventStreamBegin, 4)
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +241,8 @@ func newUCMStreamBegin(messageStreamID uint32) (*chunkStream, error) {
 	if err := utils.WriteUintBE(buf, messageStreamID, 4); err != nil {
 		return nil, err
 	}
-	if err := cs.writeToData(buf.Bytes()); err != nil {
+	if err := m.cs.writeToData(buf.Bytes()); err != nil {
 		return nil, err
 	}
-	return cs, nil
+	return m, nil
 }

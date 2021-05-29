@@ -2,9 +2,7 @@ package rtmp
 
 import (
 	"fmt"
-	"github.com/zhyoulun/gls/src/av"
 	"github.com/zhyoulun/gls/src/core"
-	"github.com/zhyoulun/gls/src/flv"
 	"github.com/zhyoulun/gls/src/utils"
 	"github.com/zhyoulun/gls/src/utils/debug"
 	"io"
@@ -31,67 +29,13 @@ func (cs *chunkStream) toChunkCsvLine() string {
 		cs.chunkStreamID, cs.clock, cs.messageLength, cs.messageTypeID, cs.messageStreamID,
 		cs.tmp.extended, cs.tmp.timestampDelta, cs.dataIndex)
 }
+
 func newChunkStreamForRead(basicHeader *chunkBasicHeader) (*chunkStream, error) {
 	return &chunkStream{
 		chunkStreamID: basicHeader.chunkStreamID,
 		tmp: chunkStreamTmp{
 			currentFmt: basicHeader.fmt,
 		},
-	}, nil
-}
-
-func newChunkStreamForMessage(chunkStreamID, timestamp, messageLength uint32, messageTypeID uint8, messageStreamID uint32) (*chunkStream, error) {
-	return &chunkStream{
-		chunkStreamID:   chunkStreamID,
-		clock:           timestamp,
-		messageLength:   messageLength,
-		messageTypeID:   messageTypeID,
-		messageStreamID: messageStreamID,
-		data:            make([]byte, messageLength),
-		dataIndex:       0,
-	}, nil
-}
-
-func newChunkStreamForPacket(p *av.Packet) (*chunkStream, error) {
-	var messageTypeID uint8
-	avType := p.GetAvType()
-	if avType == av.TypeAudio {
-		messageTypeID = typeAudio
-	} else if avType == av.TypeVideo {
-		messageTypeID = typeVideo
-	} else if avType == av.TypeMetadata {
-		messageTypeID = typeDataAMF0
-	} else {
-		return nil, core.ErrorImpossible
-	}
-
-	//获取data和dataLength
-	data := p.GetData()
-	var err error
-	if messageTypeID == typeDataAMF0 {
-		if data, err = flv.MetadataReformDelete(data); err != nil {
-			return nil, err
-		}
-	}
-	dataLength := uint32(len(data))
-
-	var chunkStreamID uint32
-	if avType == av.TypeAudio {
-		chunkStreamID = 4 //todo ??
-	} else if avType == av.TypeVideo || avType == av.TypeMetadata {
-		chunkStreamID = 6 //todo ??
-	} else {
-		return nil, core.ErrorImpossible
-	}
-
-	return &chunkStream{
-		chunkStreamID:   chunkStreamID,
-		clock:           p.GetTimestamp(),
-		messageLength:   dataLength,
-		messageTypeID:   messageTypeID,
-		messageStreamID: p.GetStreamID(),
-		data:            data,
-		dataIndex:       0,
 	}, nil
 }
 
