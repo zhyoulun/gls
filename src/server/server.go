@@ -44,7 +44,7 @@ func (s *Server) handleConn(conn utils.PeekerConn) error {
 	if err := rtmpConn.Handshake(); err != nil {
 		return err
 	}
-	if err := rtmpConn.ReadMessage(); err != nil {
+	if err := rtmpConn.ReadHeader(); err != nil {
 		return errors.Wrap(err, "rtmp conn read message")
 	}
 

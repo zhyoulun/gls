@@ -17,10 +17,10 @@ import (
 type Conn struct {
 	conn utils.PeekerConn
 
-	chunkSize           uint32
-	remoteChunkSize     uint32
-	remoteWindowAckSize uint32
-	chunkStreams        map[uint32]*chunkStream
+	localMaximumChunkSize  uint32
+	remoteMaximumChunkSize uint32 //the maximum chunk size should be at least 128 bytes, and must be at least 1 byte
+	remoteWindowAckSize    uint32
+	chunkStreams           map[uint32]*chunkStream
 
 	readMessageDone bool //默认值为false
 	isPublish       bool //默认值为false //todo
@@ -33,9 +33,9 @@ func NewConn(conn utils.PeekerConn) (*Conn, error) {
 	return &Conn{
 		conn: conn,
 
-		chunkSize:       1024, //defaultMaximumChunkSize,//todo ??
-		remoteChunkSize: defaultMaximumChunkSize,
-		chunkStreams:    make(map[uint32]*chunkStream),
+		localMaximumChunkSize:  defaultLocalMaximumChunkSize,
+		remoteMaximumChunkSize: defaultRemoteMaximumChunkSize,
+		chunkStreams:           make(map[uint32]*chunkStream),
 	}, nil
 }
 
@@ -51,19 +51,18 @@ func (rc *Conn) Handshake() error {
 	return nil
 }
 
-//todo 这个名字不是很好，后边尝试调整下
-func (rc *Conn) ReadMessage() error {
+func (rc *Conn) ReadHeader() error {
 	for {
 		if rc.readMessageDone {
 			break
 		}
-		var cs *chunkStream
+		var m *message
 		var err error
-		if cs, err = rc.readChunkStream(); err != nil {
+		if m, err = rc.readMessage(); err != nil {
 			return err
 		}
 		//handle message in chunk stream
-		if err = rc.handleMessage(cs.chunkStreamID, cs.messageStreamID, cs.messageTypeID, cs.data, cs.clock); err != nil { //todo 这里的cs.timestamp传参可能有问题
+		if err = rc.handleMessage(m.getChunkStreamID(), m.GetMessageStreamID(), m.getMessageTypeID(), m.GetData(), m.GetTimestamp()); err != nil { //todo 这里的cs.timestamp传参可能有问题
 			return err
 		}
 	}
@@ -87,30 +86,30 @@ func (rc *Conn) Close() error {
 }
 
 func (rc *Conn) ReadPacket() (*av.Packet, error) {
-	var cs *chunkStream
+	var m *message
 	var err error
 	for {
-		cs, err = rc.readChunkStream()
+		m, err = rc.readMessage()
 		if err != nil {
 			return nil, err
 		}
 
 		//debug
 		debug.Csv.Write(&debug.Message{
-			FileName:   "chunk_stream.csv",
-			HeaderLine: cs.toCsvHeader(),
-			BodyLine:   cs.toCsvLine(),
+			FileName:   "message.csv",
+			HeaderLine: m.toCsvHeader(),
+			BodyLine:   m.toCsvLine(),
 		})
 
-		if cs.messageTypeID == typeAudio || cs.messageTypeID == typeVideo ||
-			cs.messageTypeID == typeDataAMF0 || cs.messageTypeID == typeDataAMF3 {
+		if m.getMessageTypeID() == typeAudio || m.getMessageTypeID() == typeVideo ||
+			m.getMessageTypeID() == typeDataAMF0 || m.getMessageTypeID() == typeDataAMF3 {
 			break
 		}
-		log.Tracef("read packet, ignore, messageTypeID: %d", cs.messageTypeID)
+		log.Tracef("read packet, ignore, messageTypeID: %d", m.getMessageTypeID())
 	}
 
 	demuxer := flv.NewDemuxer()
-	p, err := av.NewPacket(cs, demuxer)
+	p, err := av.NewPacket(m, demuxer)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +134,7 @@ func (rc *Conn) WritePacket(p *av.Packet) error {
 	return nil
 }
 
-func (rc *Conn) readChunkStream() (*chunkStream, error) {
+func (rc *Conn) readMessage() (*message, error) {
 	var cs *chunkStream
 	for {
 		var basicHeader *chunkBasicHeader
@@ -163,20 +162,20 @@ func (rc *Conn) readChunkStream() (*chunkStream, error) {
 		}
 
 		//read chunk to chunk stream
-		if err = cs.readChunk(rc.conn, rc.remoteChunkSize); err != nil {
+		if err = cs.readChunk(rc.conn, rc.remoteMaximumChunkSize); err != nil {
 			return nil, err
 		}
-		if cs.got() {
+		if cs.gotOneMessage() {
 			log.Tracef("got chunk stream: %s", cs)
 			break
 		}
 	}
 
-	return cs, nil
+	return newMessage(cs)
 }
 
 func (rc *Conn) writeChunkStream(cs *chunkStream) error {
-	return cs.writeChunk(rc.conn, rc.chunkSize)
+	return cs.writeChunk(rc.conn, rc.localMaximumChunkSize)
 }
 
 func (rc *Conn) handleMessage(chunkStreamID, messageStreamID uint32, messageTypeID uint8, data []byte, timestamp uint32) error {
@@ -189,7 +188,13 @@ func (rc *Conn) handleMessage(chunkStreamID, messageStreamID uint32, messageType
 		typeAbort,
 		typeAcknowledgement,
 		typeWindowAcknowledgementSize,
-		typeSetPeerBandwidth:
+		typeSetPeerBandwidth: //timestamp is ignored
+		if chunkStreamID != chunkStreamID2 {
+			return errors.Errorf("protocol control message must be sent in chunk stream id 2")
+		}
+		if messageStreamID != messageStreamID0 {
+			return errors.Errorf("protocol control message must have message stream id 0")
+		}
 		return rc.handleProtocolControlMessage(messageTypeID, data)
 	case typeUserControl: //todo
 
@@ -283,13 +288,16 @@ func (rc *Conn) handleProtocolControlMessage(typeID uint8, data []byte) error {
 		if v > maxValidMaximumChunkSize || v < minValidMaximumChunkSize {
 			return fmt.Errorf("invalid maximum chunck size, value: %d", v)
 		}
-		rc.remoteChunkSize = v
+		rc.remoteMaximumChunkSize = v
 	case typeAbort:
-		//todo
-		return core.ErrorNotImplemented
+		if n != 4 {
+			return fmt.Errorf("abort error, length: %d", n)
+		}
+		//todo discard the partially received message over a chunk stream
 	case typeAcknowledgement:
-		//todo
-		return core.ErrorNotImplemented
+		if n != 4 {
+			return fmt.Errorf("acknowledgement error, length: %d", n)
+		}
 	case typeWindowAcknowledgementSize:
 		if n != 4 {
 			return fmt.Errorf("window acknowledgement size error, length: %d", n)
@@ -369,7 +377,7 @@ func (rc *Conn) handleCommandConnect(chunkStreamID, messageStreamID uint32, vs [
 			return err
 		}
 	}
-	if cs, err := newPCMSetChunkSize(rc.chunkSize); err != nil { //todo 是rc.chunkSize吗？
+	if cs, err := newPCMSetChunkSize(rc.localMaximumChunkSize); err != nil { //todo 是rc.chunkSize吗？
 		return err
 	} else {
 		if err := rc.writeChunkStream(cs); err != nil {

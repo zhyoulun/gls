@@ -14,13 +14,28 @@ const (
 )
 
 const (
-	minValidMaximumChunkSize = 1
-	maxValidMaximumChunkSize = 0x7fffffff
-	defaultMaximumChunkSize  = 128
+	minValidMaximumChunkSize      = 1
+	maxValidMaximumChunkSize      = 0x7fffffff
+	defaultRemoteMaximumChunkSize = 128
+	defaultLocalMaximumChunkSize  = 1024
+)
+
+const (
+	max3BTimestamp = 0xffffff
+)
+
+const (
+	messageStreamID0 = 0
+)
+
+const (
+	chunkStreamID2 = 2
 )
 
 const (
 	//protocol control message
+	//these protocol control message must have message stream id 0(messageStreamID0)(known as the control stream)
+	//	and be sent in chunk stream id 2(chunkStreamID2)
 	typeSetChunkSize              = 1
 	typeAbort                     = 2
 	typeAcknowledgement           = 3

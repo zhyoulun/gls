@@ -3,11 +3,68 @@ package rtmp
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"github.com/zhyoulun/gls/src/av"
+	"github.com/zhyoulun/gls/src/core"
 	"github.com/zhyoulun/gls/src/utils"
 )
 
+type message struct {
+	cs *chunkStream
+}
+
+func newMessage(cs *chunkStream) (*message, error) {
+	return &message{
+		cs: cs,
+	}, nil
+}
+
+func (m *message) toCsvHeader() string {
+	return fmt.Sprintf("chunkStreamID,timestamp,messageLength,messageTypeID,messageStreamID\n")
+}
+
+func (m *message) toCsvLine() string {
+	return fmt.Sprintf("%d,%d,%d,%d,%d\n", m.cs.chunkStreamID, m.cs.clock,
+		m.cs.messageLength, m.cs.messageTypeID, m.cs.messageStreamID)
+}
+
+func (m *message) getChunkStreamID() uint32 {
+	return m.cs.chunkStreamID
+}
+
+func (m *message) GetMessageStreamID() uint32 {
+	return m.cs.messageStreamID
+}
+
+func (m *message) getMessageTypeID() uint8 {
+	return m.cs.messageTypeID
+}
+
+func (m *message) GetData() []byte {
+	return m.cs.data
+}
+
+func (m *message) GetTimestamp() uint32 {
+	return m.cs.clock
+}
+
+func (m *message) GetAvType() (uint8, error) {
+	var avType uint8
+	if m.cs.messageTypeID == typeAudio {
+		avType = av.TypeAudio
+	} else if m.cs.messageTypeID == typeVideo {
+		avType = av.TypeVideo
+	} else if m.cs.messageTypeID == typeDataAMF0 || m.cs.messageTypeID == typeDataAMF3 {
+		avType = av.TypeMetadata
+	} else {
+		return 0, core.ErrorImpossible
+	}
+	return avType, nil
+}
+
 func newBaseProtocolControlMessage(messageLength uint32, messageTypeID uint8) (*chunkStream, error) {
-	return newChunkStreamForMessage(2, 0, messageLength, messageTypeID, 0)
+	var timestamp uint32 = 0 //ignored
+	return newChunkStreamForMessage(chunkStreamID2, timestamp, messageLength, messageTypeID, messageStreamID0)
 }
 
 //protocol control message

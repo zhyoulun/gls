@@ -31,16 +31,6 @@ func (cs *chunkStream) toChunkCsvLine() string {
 		cs.chunkStreamID, cs.clock, cs.messageLength, cs.messageTypeID, cs.messageStreamID,
 		cs.tmp.extended, cs.tmp.timestampDelta, cs.dataIndex)
 }
-
-func (cs *chunkStream) toCsvHeader() string {
-	return fmt.Sprintf("chunkStreamID,timestamp,messageLength,messageTypeID,messageStreamID\n")
-}
-
-func (cs *chunkStream) toCsvLine() string {
-	return fmt.Sprintf("%d,%d,%d,%d,%d\n", cs.chunkStreamID, cs.clock,
-		cs.messageLength, cs.messageTypeID, cs.messageStreamID)
-}
-
 func newChunkStreamForRead(basicHeader *chunkBasicHeader) (*chunkStream, error) {
 	return &chunkStream{
 		chunkStreamID: basicHeader.chunkStreamID,
@@ -129,7 +119,7 @@ func (cs *chunkStream) String() string {
 		cs.clock, cs.messageLength, cs.messageTypeID, cs.messageStreamID, cs.dataIndex)
 }
 
-func (cs *chunkStream) got() bool {
+func (cs *chunkStream) gotOneMessage() bool {
 	return cs.messageLength == cs.dataIndex
 }
 
@@ -161,7 +151,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			return err
 		}
 		//cs.timestamp
-		if cs.tmp.timestamp == 0xffffff {
+		if cs.tmp.timestamp == max3BTimestamp {
 			var extendedTimestamp uint32
 			if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
@@ -194,7 +184,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			cs.messageTypeID = uint8(messageTypeID)
 		}
 		//cs.timestamp
-		if cs.tmp.timestampDelta == 0xffffff {
+		if cs.tmp.timestampDelta == max3BTimestamp {
 			var extendedTimestamp uint32
 			if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
@@ -216,7 +206,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 			return err
 		}
 		//cs.timestamp
-		if cs.tmp.timestampDelta == 0xffffff {
+		if cs.tmp.timestampDelta == max3BTimestamp {
 			var extendedTimestamp uint32
 			if extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
@@ -239,60 +229,17 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 		//		as there is no need for a chunk of type 2 to register the delta
 		//if a type 3 chunk follows a type 0 chunk, then the timestamp delta for this type 3 chunk is the same as the timestamp of the type 0 chunk
 
-		//var err error
-		//if cs.dataIndex == cs.messageLength { //todo ??不明白
-		//	//cs.timestamp
-		//	switch cs.fmt {
-		//	case fmt0:
-		//		if cs.tmp.extended {
-		//			//todo 信息需要再具体下
-		//			//extended timestamp
-		//			//this field is present in type 3 chunks when the most recent type 0,1, or 2 chunk for the same chunk stream id
-		//			//	indicated the presence of an extended timestamp field
-		//			if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
-		//				return err
-		//			}
-		//			cs.clock = cs.tmp.extendedTimestamp //todo 这行代码的位置有问题吗？
-		//		}
-		//		//todo 为什么这里没有else？
-		//	case fmt1, fmt2:
-		//		var timestampDelta uint32
-		//		if cs.tmp.extended {
-		//			if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
-		//				return err
-		//			}
-		//			timestampDelta = cs.tmp.extendedTimestamp
-		//		} else {
-		//			timestampDelta = cs.tmp.timestampDelta
-		//		}
-		//		cs.clock += timestampDelta //todo 这行代码的位置有问题吗？
-		//	}
-		//	//cs.data init
-		//	//todo 这里的cs.messageLength从哪里来？从上个有相同chunkStreamID的message来？
-		//	cs.initData(cs.messageLength)
-		//} else {
-		//	if cs.tmp.extended {
-		//		//todo 这段逻辑比较神奇
-		//		b, err := r.Peek(4)
-		//		if err != nil {
-		//			return err
-		//		}
-		//		tmpTS := binary.BigEndian.Uint32(b)
-		//		if tmpTS == cs.clock {
-		//			_, _ = utils.ReadBytes(r, 4) //discard
-		//		}
-		//	}
-		//	//todo 为啥没有else呢？
-		//}
-
-		//换一种写法
 		//read extended timestamp
 		if cs.tmp.extended {
 			var err error
 			if cs.tmp.extendedTimestamp, err = utils.ReadUintBE(r, 4); err != nil {
 				return err
 			}
+		} else {
+			//nothing changed
 		}
+		//chunk type 3 can be used in two different ways. the first is to specify the continuation of a message.
+		//  the second is to specify the beginning of a new message whose header can be derived from the existing state data.
 		if cs.dataIndex == cs.messageLength { //example 1
 			//set cs.clock
 			if cs.fmt == fmt0 {
@@ -309,6 +256,8 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 				}
 			}
 			cs.initData(cs.messageLength)
+		} else {
+			//nothing changed
 		}
 
 	default:
@@ -321,7 +270,7 @@ func (cs *chunkStream) readChunk(r utils.ReadPeeker, chunkSize uint32) error {
 	//Note this is generally not the same as the length of the chunk payload.
 	//the chunk payload length is the maximum chunk size for all but the last chunk,
 	//		and the remainder(which may be the entire length, for small messages) for the last chunk//todo 什么意思??
-	readLength := cs.messageLength - cs.dataIndex
+	readLength := cs.messageLength - cs.dataIndex //example 2
 	if readLength > chunkSize {
 		readLength = chunkSize
 	}
@@ -436,30 +385,4 @@ func (cs *chunkStream) writeToData(v []byte) error {
 	copy(cs.data[cs.dataIndex:uint32(len(v))+cs.dataIndex], v)
 	cs.dataIndex += uint32(len(v))
 	return nil
-}
-
-func (cs *chunkStream) GetAvType() (uint8, error) {
-	var avType uint8
-	if cs.messageTypeID == typeAudio {
-		avType = av.TypeAudio
-	} else if cs.messageTypeID == typeVideo {
-		avType = av.TypeVideo
-	} else if cs.messageTypeID == typeDataAMF0 || cs.messageTypeID == typeDataAMF3 {
-		avType = av.TypeMetadata
-	} else {
-		return 0, core.ErrorImpossible
-	}
-	return avType, nil
-}
-
-func (cs *chunkStream) GetMessageStreamID() uint32 {
-	return cs.messageStreamID
-}
-
-func (cs *chunkStream) GetTimestamp() uint32 {
-	return cs.clock
-}
-
-func (cs *chunkStream) GetData() []byte {
-	return cs.data
 }

@@ -41,7 +41,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00})                         //timestamp
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //data
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.NoError(t, err)
 		assert.Equal(t, uint32(0), cs.clock)
 		assert.Equal(t, uint32(8), cs.messageLength)
@@ -52,7 +52,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 		cs, _ := newChunkStreamForRead(header)
 		buf, _ := utils.NewReadBuffer([]byte{})
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -60,7 +60,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 		buf, _ := utils.NewReadBuffer([]byte{})
 		buf.Write([]byte{0x00, 0x00, 0x00}) //timestamp
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -69,7 +69,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x00}) //timestamp
 		buf.Write([]byte{0x00, 0x00, 0x08}) //message length
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -79,7 +79,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x08}) //message length
 		buf.Write([]byte{0x00})             //message type id
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -90,7 +90,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 		buf.Write([]byte{0x00})                   //message type id
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00}) //message stream id
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -102,7 +102,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00})                   //message stream id
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //data
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -113,7 +113,7 @@ func Test_chunkStream_readChunkFmt0(t *testing.T) {
 		buf.Write([]byte{0x00})                   //message type id
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00}) //message stream id
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 }
@@ -149,7 +149,7 @@ func Test_chunkStream_readChunkFmt1(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00})                         //timestamp
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //data
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.NoError(t, err)
 		assert.Equal(t, uint32(0), cs.clock)
 		assert.Equal(t, uint32(8), cs.messageLength)
@@ -160,7 +160,7 @@ func Test_chunkStream_readChunkFmt1(t *testing.T) {
 		cs, _ := newChunkStreamForRead(header)
 		buf, _ := utils.NewReadBuffer([]byte{})
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -168,7 +168,7 @@ func Test_chunkStream_readChunkFmt1(t *testing.T) {
 		buf, _ := utils.NewReadBuffer([]byte{})
 		buf.Write([]byte{0x00, 0x00, 0x00}) //timestamp
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -177,7 +177,7 @@ func Test_chunkStream_readChunkFmt1(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x00}) //timestamp
 		buf.Write([]byte{0x00, 0x00, 0x08}) //message length
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -187,7 +187,7 @@ func Test_chunkStream_readChunkFmt1(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x08}) //message length
 		buf.Write([]byte{0x00})             //message type id
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -198,7 +198,7 @@ func Test_chunkStream_readChunkFmt1(t *testing.T) {
 		buf.Write([]byte{0x00})                                     //message type id
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //data
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -208,7 +208,7 @@ func Test_chunkStream_readChunkFmt1(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x08}) //message length
 		buf.Write([]byte{0x00})             //message type id
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 }
@@ -240,7 +240,7 @@ func Test_chunkStream_readChunkFmt2(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00})                         //timestamp
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //data
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.NoError(t, err)
 		assert.Equal(t, uint32(0), cs.clock)
 	}
@@ -249,7 +249,7 @@ func Test_chunkStream_readChunkFmt2(t *testing.T) {
 		cs.messageLength = 8
 		buf, _ := utils.NewReadBuffer([]byte{})
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -258,7 +258,7 @@ func Test_chunkStream_readChunkFmt2(t *testing.T) {
 		buf, _ := utils.NewReadBuffer([]byte{})
 		buf.Write([]byte{0x00, 0x00, 0x00}) //timestamp
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -268,7 +268,7 @@ func Test_chunkStream_readChunkFmt2(t *testing.T) {
 		buf.Write([]byte{0x00, 0x00, 0x00})                         //timestamp
 		buf.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}) //data
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 	{
@@ -277,7 +277,7 @@ func Test_chunkStream_readChunkFmt2(t *testing.T) {
 		buf, _ := utils.NewReadBuffer([]byte{})
 		buf.Write([]byte{0xff, 0xff, 0xff}) //timestamp
 
-		err := cs.readChunk(buf, defaultMaximumChunkSize)
+		err := cs.readChunk(buf, defaultRemoteMaximumChunkSize)
 		assert.Error(t, err)
 	}
 }

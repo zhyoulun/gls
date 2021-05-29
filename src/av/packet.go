@@ -21,14 +21,14 @@ func (p *Packet) ToCsvLine() string {
 	return fmt.Sprintf("%d,%d,%d,%d\n", p.avType, p.streamID, p.timestamp, len(p.data))
 }
 
-type ChunkStreamI interface {
+type MessageI interface {
 	GetAvType() (uint8, error)
 	GetMessageStreamID() uint32
 	GetTimestamp() uint32
 	GetData() []byte
 }
 
-func NewPacket(csi ChunkStreamI, di DemuxerI) (*Packet, error) {
+func NewPacket(csi MessageI, di DemuxerI) (*Packet, error) {
 	var err error
 	avType, err := csi.GetAvType()
 	if err != nil {
