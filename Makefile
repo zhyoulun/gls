@@ -12,7 +12,8 @@ lint:
 -E goimports \
 -D deadcode -D unused -D structcheck -D varcheck ./...
 
-
+stats:
+	./scripts/stats.sh
 
 tools:
 	go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.40.1
