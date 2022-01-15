@@ -30,7 +30,6 @@ func (m *Manager) HandlePublish(conn *rtmp.Conn) error {
 	if err = stream.SetSource(conn); err != nil {
 		return err
 	}
-	stream.Run()
 	return nil
 
 }
@@ -41,7 +40,7 @@ func (m *Manager) HandlePlay(conn *rtmp.Conn) error {
 	if stream, err = m.getOrCreateStream(conn.GetConnInfo(), conn.GetStreamName()); err != nil {
 		return err
 	}
-	if err = stream.addSink(conn); err != nil {
+	if err = stream.AddSink(conn); err != nil {
 		return err
 	}
 	return nil

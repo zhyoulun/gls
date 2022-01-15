@@ -1,23 +1,31 @@
 package stream
 
 import (
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/zhyoulun/gls/src/av"
 	"github.com/zhyoulun/gls/src/rtmp"
+	"sync/atomic"
+)
+
+var (
+	globalID int32 = 0
 )
 
 type Sink struct {
+	id       int32
 	conn     *rtmp.Conn
 	running  bool
 	ch       chan interface{}
 	initDone bool
 }
 
-func newSink(conn *rtmp.Conn) (*Sink, error) {
+func NewSink(conn *rtmp.Conn) *Sink {
 	return &Sink{
+		id:   atomic.AddInt32(&globalID, 1),
 		conn: conn,
 		ch:   make(chan interface{}, 1000),
-	}, nil
+	}
 }
 
 func (s *Sink) Close() error {
@@ -64,5 +72,5 @@ func (s *Sink) Send(p *av.Packet) error {
 }
 
 func (s *Sink) ID() string {
-	return s.conn.GetStreamName() //todo 待优化
+	return fmt.Sprintf("%s:%d", s.conn.GetStreamName(), s.id) //todo 待优化
 }
