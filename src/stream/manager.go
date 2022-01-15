@@ -55,7 +55,7 @@ func (m *Manager) getOrCreateStream(connInfo rtmp.ConnectCommentObject, streamNa
 	var ok bool
 	var stream *Stream
 
-	key := m.getKey(connInfo, streamName)
+	key := m.genStreamKey(connInfo, streamName)
 	if stream, ok = m.streams[key]; !ok {
 		if stream, err = newStream(); err != nil {
 			return nil, err
@@ -67,6 +67,6 @@ func (m *Manager) getOrCreateStream(connInfo rtmp.ConnectCommentObject, streamNa
 }
 
 //todo 待完善
-func (m *Manager) getKey(connInfo rtmp.ConnectCommentObject, streamName string) string {
+func (m *Manager) genStreamKey(connInfo rtmp.ConnectCommentObject, streamName string) string {
 	return fmt.Sprintf("%s:%s", connInfo.App, streamName)
 }

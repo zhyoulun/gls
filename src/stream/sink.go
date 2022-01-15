@@ -27,7 +27,7 @@ func (s *Sink) Close() error {
 
 func (s *Sink) Run() {
 	s.running = true
-	go s.writeCycle()
+	go s.writeCycle() //todo 使用协程池
 }
 
 func (s *Sink) writeCycle() {
@@ -43,7 +43,7 @@ func (s *Sink) writeCycle() {
 			log.Tracef("write %s", p)
 			if err := s.conn.WritePacket(p); err != nil {
 				s.running = false
-				log.Errorf("write packet fail, err: %+v", err)
+				log.Errorf("write packet fail, err: %s", err)
 			}
 		}
 	}

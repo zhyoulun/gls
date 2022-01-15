@@ -37,7 +37,7 @@ func (s *Stream) SetSource(conn *rtmp.Conn) error {
 
 	if s.source != nil {
 		if err := conn.Close(); err != nil { //todo close位置优化，减少心智负担
-			log.Printf("source Close error: %+v", err)
+			log.Printf("source Close err: %s", err)
 		}
 		return core.ErrorAlreadyExist
 	}
@@ -47,7 +47,7 @@ func (s *Stream) SetSource(conn *rtmp.Conn) error {
 
 func (s *Stream) Run() {
 	s.running = true
-	go s.readCycle()
+	go s.readCycle() //todo 使用协程池
 }
 
 func (s *Stream) readCycle() {
@@ -57,9 +57,13 @@ func (s *Stream) readCycle() {
 			s.closeAllSink()
 			break
 		}
+
 		var p *av.Packet
 		var err error
 		if p, err = s.source.ReadPacket(); err != nil {
+			log.Warnf("stream source ReadPacket err: %s", err)
+			log.Infof("source conn stop, local addr: %s, remote addr: %s",
+				s.source.NetConn().LocalAddr(), s.source.NetConn().RemoteAddr())
 			s.running = false
 			continue
 		} else {
@@ -90,30 +94,30 @@ func (s *Stream) readCycle() {
 				if s.metadata != nil {
 					if err := sink.Send(s.metadata); err != nil {
 						if err := sink.Close(); err != nil {
-							log.Errorf("sink Close err: %+v", err)
+							log.Errorf("sink Close err: %s", err)
 						}
 						delete(s.sinks, sink.ID())
-						log.Errorf("sink Send err: %+v", err)
+						log.Errorf("sink Send err: %s", err)
 						continue
 					}
 				}
 				if s.audio != nil {
 					if err := sink.Send(s.audio); err != nil {
 						if err := sink.Close(); err != nil {
-							log.Errorf("sink Close err: %+v", err)
+							log.Errorf("sink Close err: %s", err)
 						}
 						delete(s.sinks, sink.ID())
-						log.Errorf("sink Send err: %+v", err)
+						log.Errorf("sink Send err: %s", err)
 						continue
 					}
 				}
 				if s.video != nil {
 					if err := sink.Send(s.video); err != nil {
 						if err := sink.Close(); err != nil {
-							log.Errorf("sink Close err: %+v", err)
+							log.Errorf("sink Close err: %s", err)
 						}
 						delete(s.sinks, sink.ID())
-						log.Errorf("sink Send err: %+v", err)
+						log.Errorf("sink Send err: %s", err)
 						continue
 					}
 				}
@@ -121,10 +125,10 @@ func (s *Stream) readCycle() {
 			}
 			if err := sink.Send(p); err != nil {
 				if err := sink.Close(); err != nil {
-					log.Errorf("sink Close err: %+v", err)
+					log.Errorf("sink Close err: %s", err)
 				}
 				delete(s.sinks, sink.ID())
-				log.Errorf("sink Send err: %+v", err)
+				log.Errorf("sink Send err: %s", err)
 				continue
 			}
 		}
@@ -146,4 +150,8 @@ func (s *Stream) addSink(conn *rtmp.Conn) error {
 	s.sinks[sink.ID()] = sink
 	sink.Run()
 	return nil
+}
+
+func (s *Stream) Close() {
+	s.running = false
 }

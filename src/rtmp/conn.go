@@ -12,6 +12,7 @@ import (
 	"github.com/zhyoulun/gls/src/flv"
 	"github.com/zhyoulun/gls/src/utils"
 	"github.com/zhyoulun/gls/src/utils/debug"
+	"net"
 )
 
 type Conn struct {
@@ -597,4 +598,8 @@ func (c *Conn) handleCommandPlay(chunkStreamID, messageStreamID uint32, vs []int
 	}
 
 	return nil
+}
+
+func (c *Conn) NetConn() net.Conn {
+	return c.conn
 }

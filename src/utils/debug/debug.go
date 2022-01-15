@@ -64,7 +64,7 @@ func (d *CsvDebug) doClose(m *Message) {
 	if mf, ok = d.csvFiles[m.FileName]; ok {
 		if err := mf.f.Close(); err != nil {
 			filePath := folder + m.FileName
-			log.Warnf("close file [%s] err: %+v", filePath, err)
+			log.Warnf("close file [%s] err: %s", filePath, err)
 		}
 	}
 }
@@ -80,7 +80,7 @@ func (d *CsvDebug) doMessage(m *Message) {
 	if mf, ok = d.csvFiles[m.FileName]; !ok {
 		f, err = os.OpenFile(filePath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0666)
 		if err != nil {
-			log.Warnf("os OpenFile [%s] err: %+v", filePath, err)
+			log.Warnf("os OpenFile [%s] err: %s", filePath, err)
 			return
 		}
 		mf = &myFile{
@@ -93,7 +93,7 @@ func (d *CsvDebug) doMessage(m *Message) {
 	if !mf.firstLineWrite {
 		_, err = mf.f.WriteString(m.HeaderLine)
 		if err != nil {
-			log.Warnf("write string [%s] to file [%s] err: %+v", m.HeaderLine, filePath, err)
+			log.Warnf("write string [%s] to file [%s] err: %s", m.HeaderLine, filePath, err)
 		}
 		mf.firstLineWrite = true
 	}
@@ -101,7 +101,7 @@ func (d *CsvDebug) doMessage(m *Message) {
 	//写csv body
 	_, err = mf.f.WriteString(m.BodyLine)
 	if err != nil {
-		log.Warnf("write string [%s] to file [%s] err: %+v", m.BodyLine, filePath, err)
+		log.Warnf("write string [%s] to file [%s] err: %s", m.BodyLine, filePath, err)
 	}
 }
 

@@ -33,16 +33,17 @@ func main() {
 		panic(err)
 	}
 
-	log.Infof("start golang live server")
-	ln, err := net.Listen("tcp", "127.0.0.1:1935")
+	addr := "127.0.0.1:1935"
+	log.Infof("start golang live server: %s", addr)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatalf("net Listen error: %+v", err)
+		log.Fatalf("net Listen err: %s", err)
 	}
 	rtmpServer, err := server.NewServer(ln)
 	if err != nil {
-		log.Fatalf("rtmp NewServer error: %+v", err)
+		log.Fatalf("rtmp NewServer err: %s", err)
 	}
 	if err := rtmpServer.Serve(); err != nil {
-		log.Fatalf("rtmpServer Serve error: %+v", err)
+		log.Fatalf("rtmpServer Serve err: %s", err)
 	}
 }

@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"github.com/zhyoulun/gls/src/core"
 	"github.com/zhyoulun/gls/src/rtmp"
 	"github.com/zhyoulun/gls/src/stream"
 	"github.com/zhyoulun/gls/src/utils"
@@ -26,10 +26,10 @@ func (s *Server) Serve() error {
 		if err != nil {
 			return err
 		}
-		go func() {
-			bufferedConn := utils.NewBufferedConn(tcpConn, 4*1024)
+		go func() { //todo 使用协程池
+			bufferedConn := utils.NewBufferedConn(tcpConn, core.Size4KB)
 			if err := s.handleConn(bufferedConn); err != nil {
-				log.Printf("handle conn error: %+v", err)
+				log.Printf("handle conn err: %s", err)
 			}
 		}()
 	}
@@ -45,7 +45,7 @@ func (s *Server) handleConn(conn utils.PeekerConn) error {
 		return err
 	}
 	if err := rtmpConn.ReadHeader(); err != nil {
-		return errors.Wrap(err, "rtmp conn read message")
+		return err
 	}
 
 	if rtmpConn.IsPublish() {
